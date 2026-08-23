@@ -1,0 +1,7 @@
+plugins {
+  id("payflow.spring-service")
+}
+
+dependencies {
+  implementation("org.springframework.boot:spring-boot-starter-webflux")
+}
