@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+out/
+
+# Сборка и рантайм
+bin/
+*.log
+logs/
+
+# Секреты: в репозитории живёт только .env.example
+.env
+.env.*
+!.env.example
+
+# ОС
+.DS_Store
+Thumbs.db
