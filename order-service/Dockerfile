@@ -8,6 +8,8 @@ RUN ./gradlew --version --no-daemon
 COPY settings.gradle.kts build.gradle.kts ./
 COPY build-logic build-logic
 COPY config config
+# Модуль общего контракта событий: без него :order-service:bootJar не соберётся.
+COPY events-contract events-contract
 COPY order-service order-service
 RUN ./gradlew :order-service:bootJar --no-daemon -x test \
     && java -Djarmode=tools -jar order-service/build/libs/*.jar extract --layers --launcher --destination extracted

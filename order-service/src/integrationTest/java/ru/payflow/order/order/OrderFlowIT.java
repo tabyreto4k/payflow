@@ -17,8 +17,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
 import ru.payflow.order.PostgresIT;
-import ru.payflow.order.account.dto.AccountResponse;
-import ru.payflow.order.account.dto.CreateAccountRequest;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderItemRequest;
 import ru.payflow.order.order.dto.OrderResponse;
@@ -34,40 +32,24 @@ class OrderFlowIT extends PostgresIT {
     private ObjectMapper json;
 
     @Test
-    void affordableOrderIsPaidAndMoneyLeavesTheAccount() throws Exception {
-        Customer customer = openAccount("100.00");
-
-        mockMvc.perform(createOrder(customer, "40.00", 1))
+    void createdOrderWaitsForPayment() throws Exception {
+        // Счета уехали в payment-service, Kafka ещё нет — исход оплаты заказу принести некому.
+        mockMvc.perform(createOrder(customer(), "40.00", 1))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("PAID"))
+                .andExpect(jsonPath("$.status").value("AWAITING_PAYMENT"))
                 .andExpect(jsonPath("$.total").value(40.00))
                 .andExpect(jsonPath("$.createdAt").isNotEmpty());
-
-        assertBalance(customer, 60.00);
-    }
-
-    @Test
-    void unaffordableOrderIsCancelledAndBalanceStays() throws Exception {
-        Customer customer = openAccount("100.00");
-
-        mockMvc.perform(createOrder(customer, "100.00", 2))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("CANCELLED"));
-
-        assertBalance(customer, 100.00);
     }
 
     @Test
     void ordersAreListedPerCustomer() throws Exception {
-        Customer customer = openAccount("500.00");
-        Customer stranger = openAccount("500.00");
+        UUID customer = customer();
+        UUID stranger = customer();
         mockMvc.perform(createOrder(customer, "10.00", 1)).andExpect(status().isCreated());
         mockMvc.perform(createOrder(customer, "20.00", 1)).andExpect(status().isCreated());
         mockMvc.perform(createOrder(stranger, "30.00", 1)).andExpect(status().isCreated());
 
-        mockMvc.perform(get("/api/v1/orders")
-                        .header("X-Customer-Id", customer.id())
-                        .param("size", "10"))
+        mockMvc.perform(get("/api/v1/orders").header("X-Customer-Id", customer).param("size", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(2))
                 .andExpect(jsonPath("$.page.totalElements").value(2));
@@ -75,7 +57,7 @@ class OrderFlowIT extends PostgresIT {
 
     @Test
     void strangersOrderIsInvisible() throws Exception {
-        Customer customer = openAccount("100.00");
+        UUID customer = customer();
         UUID orderId = orderId(mockMvc.perform(createOrder(customer, "10.00", 1))
                 .andExpect(status().isCreated())
                 .andReturn()
@@ -87,58 +69,40 @@ class OrderFlowIT extends PostgresIT {
     }
 
     @Test
-    void paidOrderCannotBeCancelled() throws Exception {
-        Customer customer = openAccount("100.00");
+    void awaitingOrderIsCancelled() throws Exception {
+        UUID customer = customer();
         UUID orderId = orderId(mockMvc.perform(createOrder(customer, "10.00", 1))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
                 .getContentAsString());
 
-        mockMvc.perform(post("/api/v1/orders/{id}/cancel", orderId).header("X-Customer-Id", customer.id()))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.title").value("Недопустимый переход статуса"));
+        mockMvc.perform(post("/api/v1/orders/{id}/cancel", orderId).header("X-Customer-Id", customer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 
     @Test
     void orderWithoutItemsIsRejected() throws Exception {
-        Customer customer = openAccount("100.00");
+        UUID customer = customer();
 
         mockMvc.perform(post("/api/v1/orders")
-                        .header("X-Customer-Id", customer.id())
+                        .header("X-Customer-Id", customer)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(new CreateOrderRequest(List.of()))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.items").exists());
     }
 
-    private record Customer(UUID id, UUID accountId) {}
-
-    private Customer openAccount(String balance) throws Exception {
-        UUID customerId = UUID.randomUUID();
-        String created = mockMvc.perform(post("/api/v1/accounts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(
-                                json.writeValueAsString(new CreateAccountRequest(customerId, new BigDecimal(balance)))))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        return new Customer(
-                customerId, json.readValue(created, AccountResponse.class).id());
+    private static UUID customer() {
+        return UUID.randomUUID();
     }
 
-    private void assertBalance(Customer customer, double expected) throws Exception {
-        mockMvc.perform(get("/api/v1/accounts/{id}", customer.accountId()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.balance").value(expected));
-    }
-
-    private RequestBuilder createOrder(Customer customer, String price, int quantity) throws Exception {
+    private RequestBuilder createOrder(UUID customer, String price, int quantity) throws Exception {
         CreateOrderRequest request = new CreateOrderRequest(
                 List.of(new OrderItemRequest(UUID.randomUUID(), quantity, new BigDecimal(price))));
         return post("/api/v1/orders")
-                .header("X-Customer-Id", customer.id())
+                .header("X-Customer-Id", customer)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(request));
     }

@@ -1,11 +1,48 @@
 spring:
   application:
     name: payment-service
+  datasource:
+    url: ${PAYMENTS_DB_URL:jdbc:postgresql://localhost:5432/payments_db}
+    username: ${POSTGRES_PAYMENTS_USER:payments_user}
+    password: ${POSTGRES_PAYMENTS_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 15000
+        request.timeout.ms: 5000
+    consumer:
+      group-id: ${KAFKA_GROUP_ID:payment-service}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # Оффсет коммитит контейнер после успешного возврата из слушателя, а тот отрабатывает
+      # в транзакции: коммит в базу происходит раньше сдвига оффсета.
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+    listener:
+      ack-mode: record
   threads:
     virtual:
       enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 20s
+
+  mvc:
+    problemdetails:
+      enabled: true
 
 server:
   port: ${SERVER_PORT:8080}
@@ -24,6 +61,11 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+payflow:
+  outbox:
+    batch-size: ${OUTBOX_BATCH_SIZE:100}
+    poll-interval: ${OUTBOX_POLL_INTERVAL:PT0.2S}
 
 logging:
   level:

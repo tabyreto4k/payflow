@@ -8,6 +8,8 @@ RUN ./gradlew --version --no-daemon
 COPY settings.gradle.kts build.gradle.kts ./
 COPY build-logic build-logic
 COPY config config
+# Модуль общего контракта событий: без него :payment-service:bootJar не соберётся.
+COPY events-contract events-contract
 COPY payment-service payment-service
 RUN ./gradlew :payment-service:bootJar --no-daemon -x test \
     && java -Djarmode=tools -jar payment-service/build/libs/*.jar extract --layers --launcher --destination extracted

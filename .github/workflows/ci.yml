@@ -49,3 +49,34 @@ jobs:
             **/build/reports/tests/
             **/build/reports/jacoco/
           retention-days: 7
+
+  e2e:
+    name: e2e saga (compose)
+    runs-on: ubuntu-latest
+    # Отдельной джобой, а не шагом в build: сборка двух образов занимает минуты, и быстрый
+    # фидбэк по линту и тестам не должен её ждать.
+    steps:
+      - uses: actions/checkout@v4
+
+      # Секретов в сценарии нет: это локальный стенд, поднимаемый на время прогона.
+      - name: Prepare env
+        run: |
+          cp .env.example .env
+          sed -i 's/^POSTGRES_SUPERUSER_PASSWORD=$/POSTGRES_SUPERUSER_PASSWORD=postgres/' .env
+          sed -i 's/^POSTGRES_ORDERS_PASSWORD=$/POSTGRES_ORDERS_PASSWORD=orders_pwd/' .env
+          sed -i 's/^POSTGRES_PAYMENTS_PASSWORD=$/POSTGRES_PAYMENTS_PASSWORD=payments_pwd/' .env
+          sed -i 's/^GRAFANA_ADMIN_PASSWORD=$/GRAFANA_ADMIN_PASSWORD=admin/' .env
+
+      - name: Start the stack
+        run: docker compose up -d --wait
+
+      - name: Saga end to end
+        run: ./scripts/e2e-saga.sh
+
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --tail 200 order-service payment-service
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

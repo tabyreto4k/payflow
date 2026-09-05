@@ -22,11 +22,6 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Ресурс не найден", e.getMessage());
     }
 
-    @ExceptionHandler(AccountAlreadyExistsException.class)
-    public ProblemDetail handleAccountAlreadyExists(AccountAlreadyExistsException e) {
-        return problem(HttpStatus.CONFLICT, "Счёт уже существует", e.getMessage());
-    }
-
     @ExceptionHandler(IllegalStateTransitionException.class)
     public ProblemDetail handleIllegalStateTransition(IllegalStateTransitionException e) {
         return problem(HttpStatus.CONFLICT, "Недопустимый переход статуса", e.getMessage());

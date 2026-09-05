@@ -1,0 +1,16 @@
+# Отдельный файл, а не application.yml: одноимённый файл в тестовом source set затенил бы
+# основной конфиг целиком, а не дополнил его.
+payflow:
+  outbox:
+    initial-delay: PT1H
+    poll-interval: PT1H
+
+spring:
+  kafka:
+    consumer:
+      group-id: payment-service-it
+    producer:
+      properties:
+        max.block.ms: 3000
+        request.timeout.ms: 1500
+        delivery.timeout.ms: 3000

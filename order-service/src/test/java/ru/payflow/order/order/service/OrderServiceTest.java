@@ -3,19 +3,29 @@ package ru.payflow.order.order.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.payflow.order.account.service.AccountService;
+import org.springframework.test.util.ReflectionTestUtils;
+import ru.payflow.events.OrderCreatedEvent;
+import ru.payflow.events.PaymentCompletedEvent;
+import ru.payflow.events.PaymentFailedEvent;
+import ru.payflow.events.Topics;
+import ru.payflow.order.consumer.repository.ProcessedEventRepository;
 import ru.payflow.order.exception.IllegalStateTransitionException;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderItemRequest;
@@ -24,6 +34,8 @@ import ru.payflow.order.order.model.Order;
 import ru.payflow.order.order.model.OrderItem;
 import ru.payflow.order.order.model.OrderStatus;
 import ru.payflow.order.order.repository.OrderRepository;
+import ru.payflow.order.outbox.model.OutboxEvent;
+import ru.payflow.order.outbox.repository.OutboxRepository;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -37,31 +49,83 @@ class OrderServiceTest {
     private OrderQueryService queries;
 
     @Mock
-    private AccountService accounts;
+    private OutboxRepository outbox;
+
+    @Mock
+    private ProcessedEventRepository processedEvents;
+
+    // Настоящий маппер, а не мок: тест проверяет содержимое payload, подделанная сериализация
+    // проверяла бы саму себя.
+    @Spy
+    private ObjectMapper json = new ObjectMapper().findAndRegisterModules();
 
     @InjectMocks
     private OrderService service;
 
     @Test
-    void paidWhenAccountHasEnoughMoney() {
-        when(accounts.charge(eq(CUSTOMER), any(BigDecimal.class))).thenReturn(true);
-        when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    void createdOrderWaitsForPayment() {
+        when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> persisted(invocation.getArgument(0)));
 
         OrderResponse response = service.create(CUSTOMER, request("20.00", 2));
 
-        assertThat(response.status()).isEqualTo(OrderStatus.PAID);
+        // Дальше AWAITING_PAYMENT заказ сам не двигается: его сдвинет исход оплаты из Kafka.
+        assertThat(response.status()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
         assertThat(response.total()).isEqualByComparingTo("40.00");
-        verify(accounts).charge(CUSTOMER, new BigDecimal("40.00"));
     }
 
     @Test
-    void cancelledWhenMoneyIsShort() {
-        when(accounts.charge(eq(CUSTOMER), any(BigDecimal.class))).thenReturn(false);
-        when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    void createdOrderPutsItsEventIntoOutbox() throws Exception {
+        when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> persisted(invocation.getArgument(0)));
 
-        OrderResponse response = service.create(CUSTOMER, request("100.00", 2));
+        OrderResponse response = service.create(CUSTOMER, request("20.00", 2));
 
-        assertThat(response.status()).isEqualTo(OrderStatus.CANCELLED);
+        ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outbox).save(captor.capture());
+        OutboxEvent stored = captor.getValue();
+
+        assertThat(stored.getTopic()).isEqualTo(Topics.ORDERS_CREATED);
+        // Ключ партиции — id заказа: события одного заказа не должны обгонять друг друга.
+        assertThat(stored.getKey()).isEqualTo(response.id().toString());
+
+        OrderCreatedEvent event = json.readValue(stored.getPayload(), OrderCreatedEvent.class);
+        assertThat(event.orderId()).isEqualTo(response.id());
+        assertThat(event.customerId()).isEqualTo(CUSTOMER);
+        assertThat(event.amount()).isEqualByComparingTo("40.00");
+        assertThat(event.eventId()).isNotNull();
+    }
+
+    @Test
+    void completedPaymentMovesTheOrderToPaid() {
+        UUID orderId = UUID.randomUUID();
+        Order awaiting = awaitingOrder();
+        when(orders.findById(orderId)).thenReturn(Optional.of(awaiting));
+
+        service.applyPaid(new PaymentCompletedEvent(UUID.randomUUID(), orderId, Instant.now()));
+
+        assertThat(awaiting.getStatus()).isEqualTo(OrderStatus.PAID);
+    }
+
+    @Test
+    void failedPaymentCancelsTheOrder() {
+        UUID orderId = UUID.randomUUID();
+        Order awaiting = awaitingOrder();
+        when(orders.findById(orderId)).thenReturn(Optional.of(awaiting));
+
+        service.applyFailed(new PaymentFailedEvent(UUID.randomUUID(), orderId, "insufficient_funds", Instant.now()));
+
+        assertThat(awaiting.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void repeatedOutcomeIsIgnoredInsteadOfBreakingTheTransition() {
+        UUID eventId = UUID.randomUUID();
+        when(processedEvents.existsById(eventId)).thenReturn(true);
+
+        service.applyPaid(new PaymentCompletedEvent(eventId, UUID.randomUUID(), Instant.now()));
+
+        // Без отсечки повтор упал бы на переходе PAID → PAID и уехал бы в DLT как «ядовитый»,
+        // хотя сообщение исправно.
+        verify(orders, never()).findById(any());
     }
 
     @Test
@@ -84,6 +148,18 @@ class OrderServiceTest {
         when(queries.ownOrder(CUSTOMER, orderId)).thenReturn(awaiting);
 
         assertThat(service.cancel(CUSTOMER, orderId).status()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    private static Order awaitingOrder() {
+        Order order = order();
+        order.awaitPayment();
+        return order;
+    }
+
+    /** id заказу проставляет Hibernate на persist — в юните это делает тест. */
+    private static Order persisted(Order order) {
+        ReflectionTestUtils.setField(order, "id", UUID.randomUUID());
+        return order;
     }
 
     private static Order order() {

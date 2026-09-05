@@ -1,0 +1,44 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0003-payments
+      author: payflow
+      logicalFilePath: db/changelog/changes/0003-payments.yaml
+      changes:
+        - createTable:
+            tableName: payments
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              # Второй слой идемпотентности: сколько бы событий об этом заказе ни пришло,
+              # списание по нему может быть ровно одно. Проверку в коде страхует база.
+              - column:
+                  name: order_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_payments_order_id
+              - column:
+                  name: customer_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: numeric(19, 2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
