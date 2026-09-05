@@ -1,29 +1,41 @@
 package ru.payflow.order.order.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.payflow.events.OrderCreatedEvent;
+import ru.payflow.events.Topics;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderResponse;
 import ru.payflow.order.order.model.Order;
 import ru.payflow.order.order.model.OrderItem;
 import ru.payflow.order.order.repository.OrderRepository;
+import ru.payflow.order.outbox.model.OutboxEvent;
+import ru.payflow.order.outbox.repository.OutboxRepository;
 
 @Service
 public class OrderService {
 
     private final OrderRepository orders;
     private final OrderQueryService queries;
+    private final OutboxRepository outbox;
+    private final ObjectMapper json;
 
-    public OrderService(OrderRepository orders, OrderQueryService queries) {
+    public OrderService(OrderRepository orders, OrderQueryService queries, OutboxRepository outbox, ObjectMapper json) {
         this.orders = orders;
         this.queries = queries;
+        this.outbox = outbox;
+        this.json = json;
     }
 
     /**
-     * Заказ уходит в {@code AWAITING_PAYMENT} и там остаётся: счета уехали в payment-service, а
-     * Kafka ещё нет. Место списания займёт запись в outbox — до неё заказ не оплачивается.
+     * Заказ и событие о нём пишутся одной транзакцией: отправлять в Kafka из бизнес-транзакции
+     * нельзя — брокер не участвует в откате, и на упавшем коммите ушло бы событие о заказе,
+     * которого нет. Дальше заказ двигает консьюмер исходов оплаты.
      */
     @Transactional
     public OrderResponse create(UUID customerId, CreateOrderRequest request) {
@@ -35,7 +47,25 @@ public class OrderService {
         order.awaitPayment();
         // saveAndFlush, а не save: @CreationTimestamp проставляется на вставке, и без сброса
         // в ответе на создание заказа уехал бы createdAt: null.
-        return OrderResponse.from(orders.saveAndFlush(order));
+        Order saved = orders.saveAndFlush(order);
+        outbox.save(orderCreated(saved));
+        return OrderResponse.from(saved);
+    }
+
+    private OutboxEvent orderCreated(Order order) {
+        OrderCreatedEvent event = new OrderCreatedEvent(
+                UUID.randomUUID(), order.getId(), order.getCustomerId(), order.getTotal(), Instant.now());
+        return new OutboxEvent(Topics.ORDERS_CREATED, order.getId().toString(), serialize(event));
+    }
+
+    private String serialize(OrderCreatedEvent event) {
+        try {
+            return json.writeValueAsString(event);
+        } catch (JsonProcessingException e) {
+            // Контракт — records из events-contract, они сериализуются всегда. Сюда попадём только
+            // если контракт сломали, и это баг сборки, а не ответ клиенту.
+            throw new IllegalStateException("Событие не сериализуется: " + event, e);
+        }
     }
 
     @Transactional

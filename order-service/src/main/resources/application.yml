@@ -13,6 +13,19 @@ spring:
       hibernate.jdbc.time_zone: UTC
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # acks=all + идемпотентность: подтверждение только когда запись легла на все реплики in-sync,
+      # а повтор при ретрае не породит дубль в партиции.
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 15000
+        request.timeout.ms: 5000
   threads:
     virtual:
       enabled: true
@@ -40,6 +53,11 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+payflow:
+  outbox:
+    batch-size: ${OUTBOX_BATCH_SIZE:100}
+    poll-interval: ${OUTBOX_POLL_INTERVAL:PT0.2S}
 
 logging:
   level:

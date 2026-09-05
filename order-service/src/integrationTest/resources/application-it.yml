@@ -1,0 +1,15 @@
+# Поллер в интеграционных тестах сам не тикает: OutboxPollerIT зовёт publishBatch() руками и
+# проверяет результат сразу, а остальным тестам фоновые походы в Kafka только мешают.
+payflow:
+  outbox:
+    initial-delay: PT1H
+    poll-interval: PT1H
+
+spring:
+  kafka:
+    producer:
+      properties:
+        # Тест гасит брокер и ждёт отказа: с боевыми 15 секундами он бы просто стоял.
+        max.block.ms: 3000
+        request.timeout.ms: 1500
+        delivery.timeout.ms: 3000
