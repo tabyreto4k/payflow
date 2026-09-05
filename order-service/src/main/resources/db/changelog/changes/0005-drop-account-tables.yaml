@@ -1,0 +1,28 @@
+# Хвост распила (Task 3.2): счета уехали в payments_db, а в orders_db остались таблицы, которые
+# больше никем не управляются. На свежей базе их нет — preConditions отмечают changeset выполненным
+# и ничего не трогают. Отката нет намеренно: восстанавливать счета в orders_db некуда, они живут
+# в payment-service.
+databaseChangeLog:
+  - changeSet:
+      id: 0005-drop-accounts
+      author: payflow
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - tableExists:
+            tableName: accounts
+      changes:
+        - dropTable:
+            tableName: accounts
+
+  - changeSet:
+      id: 0005-drop-idempotency-keys
+      author: payflow
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - tableExists:
+            tableName: idempotency_keys
+      changes:
+        - dropTable:
+            tableName: idempotency_keys
