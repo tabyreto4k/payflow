@@ -1,6 +1,18 @@
 spring:
   application:
     name: order-service
+  datasource:
+    url: ${ORDERS_DB_URL:jdbc:postgresql://localhost:5432/orders_db}
+    username: ${POSTGRES_ORDERS_USER:orders_user}
+    password: ${POSTGRES_ORDERS_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
   threads:
     virtual:
       enabled: true
