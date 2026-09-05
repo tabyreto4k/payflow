@@ -6,6 +6,8 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -20,6 +22,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     public ProblemDetail handleNotFound(NotFoundException e) {
         return problem(HttpStatus.NOT_FOUND, "Ресурс не найден", e.getMessage());
+    }
+
+    /** Прилетает из entry point'а Spring Security: личности в заголовках нет или она нечитаема. */
+    @ExceptionHandler(AuthenticationException.class)
+    public ProblemDetail handleUnauthenticated(AuthenticationException e) {
+        return problem(HttpStatus.UNAUTHORIZED, "Не аутентифицирован", "Запрос без личности покупателя");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException e) {
+        return problem(HttpStatus.FORBIDDEN, "Доступ запрещён", e.getMessage());
     }
 
     @ExceptionHandler(AccountAlreadyExistsException.class)

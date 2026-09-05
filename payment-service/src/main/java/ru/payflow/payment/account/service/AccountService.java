@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.payflow.payment.account.dto.AccountResponse;
@@ -31,11 +32,11 @@ public class AccountService {
     }
 
     @Transactional
-    public Account open(CreateAccountRequest request) {
-        if (accounts.existsByCustomerId(request.customerId())) {
-            throw new AccountAlreadyExistsException(request.customerId());
+    public Account open(UUID customerId, CreateAccountRequest request) {
+        if (accounts.existsByCustomerId(customerId)) {
+            throw new AccountAlreadyExistsException(customerId);
         }
-        return accounts.save(new Account(request.customerId(), request.initialBalance()));
+        return accounts.save(new Account(customerId, request.initialBalance()));
     }
 
     /**
@@ -43,10 +44,11 @@ public class AccountService {
      * ответ, что и первый запрос.
      */
     @Transactional
-    public AccountResponse deposit(UUID accountId, String idempotencyKey, DepositRequest request) {
+    public AccountResponse deposit(UUID customerId, UUID accountId, String idempotencyKey, DepositRequest request) {
         // Счёт блокируется раньше проверки ключа: два одновременных повтора выстраиваются
         // в очередь, и второй уже видит ключ, закоммиченный первым.
         Account account = accounts.findByIdForUpdate(accountId)
+                .filter(owned(customerId))
                 .orElseThrow(() -> new NotFoundException("Счёт %s не найден".formatted(accountId)));
 
         Optional<IdempotencyKey> replay = idempotencyKeys.findById(idempotencyKey);
@@ -78,8 +80,15 @@ public class AccountService {
     }
 
     @Transactional(readOnly = true)
-    public Account getById(UUID id) {
-        return accounts.findById(id).orElseThrow(() -> new NotFoundException("Счёт %s не найден".formatted(id)));
+    public Account getById(UUID customerId, UUID id) {
+        return accounts.findById(id)
+                .filter(owned(customerId))
+                .orElseThrow(() -> new NotFoundException("Счёт %s не найден".formatted(id)));
+    }
+
+    /** Чужой счёт отвечает 404, а не 403: существование чужих счетов клиента не касается. */
+    private static Predicate<Account> owned(UUID customerId) {
+        return account -> account.getCustomerId().equals(customerId);
     }
 
     private String writeResponse(AccountResponse response) {

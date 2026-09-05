@@ -36,12 +36,12 @@ class ConcurrentWithdrawalIT extends PostgresIT {
     @RepeatedTest(3)
     void onlyOneOfTwoRacingWithdrawalsGoesThrough() throws Exception {
         UUID customerId = UUID.randomUUID();
-        Account account = accounts.open(new CreateAccountRequest(customerId, INITIAL));
+        Account account = accounts.open(customerId, new CreateAccountRequest(INITIAL));
 
         List<Boolean> outcomes = raceTwoWithdrawals(customerId);
 
         assertThat(outcomes).containsExactlyInAnyOrder(true, false);
-        assertThat(accounts.getById(account.getId()).getBalance()).isEqualByComparingTo("30.00");
+        assertThat(accounts.getById(customerId, account.getId()).getBalance()).isEqualByComparingTo("30.00");
     }
 
     private List<Boolean> raceTwoWithdrawals(UUID customerId) throws Exception {
