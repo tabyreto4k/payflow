@@ -1,0 +1,40 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0004-outbox
+      author: payflow
+      changes:
+        - createTable:
+            tableName: outbox
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: topic
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: key
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: payload
+                  type: jsonb
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sent_at
+                  type: timestamptz
+        - sql:
+            sql: CREATE INDEX ix_outbox_unsent ON outbox (id) WHERE sent_at IS NULL
+            rollback: DROP INDEX ix_outbox_unsent
