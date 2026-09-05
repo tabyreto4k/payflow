@@ -15,6 +15,6 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
     /** Берёт строку под {@code SELECT ... FOR UPDATE}: параллельные списания выстраиваются в очередь. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select a from Account a where a.id = :id")
-    Optional<Account> findByIdForUpdate(@Param("id") UUID id);
+    @Query("select a from Account a where a.customerId = :customerId")
+    Optional<Account> findByCustomerIdForUpdate(@Param("customerId") UUID customerId);
 }

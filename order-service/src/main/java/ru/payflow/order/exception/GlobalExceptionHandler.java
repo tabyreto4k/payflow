@@ -22,6 +22,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Счёт уже существует", e.getMessage());
     }
 
+    @ExceptionHandler(IllegalStateTransitionException.class)
+    public ProblemDetail handleIllegalStateTransition(IllegalStateTransitionException e) {
+        return problem(HttpStatus.CONFLICT, "Недопустимый переход статуса", e.getMessage());
+    }
+
     @ExceptionHandler(InsufficientFundsException.class)
     public ProblemDetail handleInsufficientFunds(InsufficientFundsException e) {
         ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_ENTITY, "Недостаточно средств", e.getMessage());

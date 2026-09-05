@@ -1,5 +1,6 @@
 package ru.payflow.order.account.service;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,23 @@ public class AccountService {
             throw new AccountAlreadyExistsException(request.customerId());
         }
         return accounts.save(new Account(request.customerId(), request.initialBalance()));
+    }
+
+    /**
+     * Списывает сумму со счёта покупателя, держа строку под блокировкой до конца транзакции.
+     *
+     * @return {@code false}, если денег не хватило — это один из двух ожидаемых исходов оплаты,
+     *     а не сбой, поэтому исключением он не выражается
+     */
+    @Transactional
+    public boolean charge(UUID customerId, BigDecimal amount) {
+        Account account = accounts.findByCustomerIdForUpdate(customerId)
+                .orElseThrow(() -> new NotFoundException("У покупателя %s нет счёта".formatted(customerId)));
+        if (account.getBalance().compareTo(amount) < 0) {
+            return false;
+        }
+        account.withdraw(amount);
+        return true;
     }
 
     @Transactional(readOnly = true)
