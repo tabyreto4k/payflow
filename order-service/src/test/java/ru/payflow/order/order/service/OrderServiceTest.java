@@ -3,12 +3,15 @@ package ru.payflow.order.order.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +22,10 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import ru.payflow.events.OrderCreatedEvent;
+import ru.payflow.events.PaymentCompletedEvent;
+import ru.payflow.events.PaymentFailedEvent;
 import ru.payflow.events.Topics;
+import ru.payflow.order.consumer.repository.ProcessedEventRepository;
 import ru.payflow.order.exception.IllegalStateTransitionException;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderItemRequest;
@@ -44,6 +50,9 @@ class OrderServiceTest {
 
     @Mock
     private OutboxRepository outbox;
+
+    @Mock
+    private ProcessedEventRepository processedEvents;
 
     // Настоящий маппер, а не мок: тест проверяет содержимое payload, подделанная сериализация
     // проверяла бы саму себя.
@@ -86,6 +95,40 @@ class OrderServiceTest {
     }
 
     @Test
+    void completedPaymentMovesTheOrderToPaid() {
+        UUID orderId = UUID.randomUUID();
+        Order awaiting = awaitingOrder();
+        when(orders.findById(orderId)).thenReturn(Optional.of(awaiting));
+
+        service.applyPaid(new PaymentCompletedEvent(UUID.randomUUID(), orderId, Instant.now()));
+
+        assertThat(awaiting.getStatus()).isEqualTo(OrderStatus.PAID);
+    }
+
+    @Test
+    void failedPaymentCancelsTheOrder() {
+        UUID orderId = UUID.randomUUID();
+        Order awaiting = awaitingOrder();
+        when(orders.findById(orderId)).thenReturn(Optional.of(awaiting));
+
+        service.applyFailed(new PaymentFailedEvent(UUID.randomUUID(), orderId, "insufficient_funds", Instant.now()));
+
+        assertThat(awaiting.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void repeatedOutcomeIsIgnoredInsteadOfBreakingTheTransition() {
+        UUID eventId = UUID.randomUUID();
+        when(processedEvents.existsById(eventId)).thenReturn(true);
+
+        service.applyPaid(new PaymentCompletedEvent(eventId, UUID.randomUUID(), Instant.now()));
+
+        // Без отсечки повтор упал бы на переходе PAID → PAID и уехал бы в DLT как «ядовитый»,
+        // хотя сообщение исправно.
+        verify(orders, never()).findById(any());
+    }
+
+    @Test
     void paidOrderCannotBeCancelled() {
         UUID orderId = UUID.randomUUID();
         Order paid = order();
@@ -105,6 +148,12 @@ class OrderServiceTest {
         when(queries.ownOrder(CUSTOMER, orderId)).thenReturn(awaiting);
 
         assertThat(service.cancel(CUSTOMER, orderId).status()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    private static Order awaitingOrder() {
+        Order order = order();
+        order.awaitPayment();
+        return order;
     }
 
     /** id заказу проставляет Hibernate на persist — в юните это делает тест. */

@@ -5,10 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.payflow.events.OrderCreatedEvent;
+import ru.payflow.events.PaymentCompletedEvent;
+import ru.payflow.events.PaymentFailedEvent;
 import ru.payflow.events.Topics;
+import ru.payflow.order.consumer.model.ProcessedEvent;
+import ru.payflow.order.consumer.repository.ProcessedEventRepository;
+import ru.payflow.order.exception.NotFoundException;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderResponse;
 import ru.payflow.order.order.model.Order;
@@ -23,12 +29,19 @@ public class OrderService {
     private final OrderRepository orders;
     private final OrderQueryService queries;
     private final OutboxRepository outbox;
+    private final ProcessedEventRepository processedEvents;
     private final ObjectMapper json;
 
-    public OrderService(OrderRepository orders, OrderQueryService queries, OutboxRepository outbox, ObjectMapper json) {
+    public OrderService(
+            OrderRepository orders,
+            OrderQueryService queries,
+            OutboxRepository outbox,
+            ProcessedEventRepository processedEvents,
+            ObjectMapper json) {
         this.orders = orders;
         this.queries = queries;
         this.outbox = outbox;
+        this.processedEvents = processedEvents;
         this.json = json;
     }
 
@@ -66,6 +79,33 @@ public class OrderService {
             // если контракт сломали, и это баг сборки, а не ответ клиенту.
             throw new IllegalStateException("Событие не сериализуется: " + event, e);
         }
+    }
+
+    /** Исход саги: деньги списаны. */
+    @Transactional
+    public void applyPaid(PaymentCompletedEvent event) {
+        apply(event.eventId(), event.orderId(), Order::markPaid);
+    }
+
+    /** Исход саги: оплата не прошла, заказ компенсируется отменой. */
+    @Transactional
+    public void applyFailed(PaymentFailedEvent event) {
+        apply(event.eventId(), event.orderId(), Order::cancel);
+    }
+
+    /**
+     * Отметка о событии и переход статуса — одной транзакцией. Повтор доставки отсекается по
+     * {@code eventId}: без этого второй {@code markPaid} упал бы на недопустимом переходе, и
+     * исправное по сути сообщение уехало бы в DLT.
+     */
+    private void apply(UUID eventId, UUID orderId, Consumer<Order> transition) {
+        if (processedEvents.existsById(eventId)) {
+            return;
+        }
+        processedEvents.save(new ProcessedEvent(eventId));
+        Order order = orders.findById(orderId)
+                .orElseThrow(() -> new NotFoundException("Заказ %s не найден".formatted(orderId)));
+        transition.accept(order);
     }
 
     @Transactional

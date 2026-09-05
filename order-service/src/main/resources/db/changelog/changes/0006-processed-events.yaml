@@ -1,0 +1,20 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0006-processed-events
+      author: payflow
+      changes:
+        # Номер 0006, а не 0005: тот занят удалением таблиц счетов, оставшихся после распила.
+        - createTable:
+            tableName: processed_events
+            columns:
+              - column:
+                  name: event_id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: processed_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
