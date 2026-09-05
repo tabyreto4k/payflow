@@ -18,7 +18,10 @@ java {
 
 repositories { mavenCentral() }
 
-val integrationTest: SourceSet by sourceSets.creating
+val integrationTest: SourceSet by sourceSets.creating {
+  compileClasspath += sourceSets["main"].output
+  runtimeClasspath += sourceSets["main"].output
+}
 
 configurations[integrationTest.implementationConfigurationName]
   .extendsFrom(configurations.getByName("testImplementation"))
@@ -32,7 +35,7 @@ val integrationTestTask =
     description = "Интеграционные тесты (Testcontainers)."
     group = "verification"
     testClassesDirs = integrationTest.output.classesDirs
-    classpath = configurations[integrationTest.runtimeClasspathConfigurationName] + integrationTest.output
+    classpath = integrationTest.runtimeClasspath
     shouldRunAfter(tasks.named("test"))
   }
 
@@ -54,8 +57,13 @@ checkstyle {
 
 jacoco { toolVersion = libs.findVersion("jacoco").get().requiredVersion }
 
+// Покрытие считается по обоим прогонам: контроллеры и обработчики ошибок закрыты
+// интеграционными тестами, и без них цифра врала бы.
+val coverageData = fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") }
+
 tasks.named<JacocoReport>("jacocoTestReport") {
-  dependsOn(tasks.named("test"))
+  dependsOn(tasks.named("test"), integrationTestTask)
+  executionData.setFrom(coverageData)
   reports {
     xml.required = true
     html.required = true
@@ -73,6 +81,7 @@ val coverageExcludes =
 
 tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
   dependsOn(tasks.named("jacocoTestReport"))
+  executionData.setFrom(coverageData)
   violationRules {
     rule {
       element = "BUNDLE"

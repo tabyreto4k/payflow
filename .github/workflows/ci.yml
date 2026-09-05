@@ -30,17 +30,15 @@ jobs:
 
       # Форматирование и линт — до тестов: падает быстрее и на очевидном.
       - name: Format & lint
-        run: ./gradlew spotlessCheck checkstyleMain checkstyleTest
+        run: ./gradlew spotlessCheck checkstyleMain checkstyleTest checkstyleIntegrationTest
 
-      - name: Build & unit tests
-        run: ./gradlew build -x integrationTest
+      - name: Unit tests
+        run: ./gradlew test
 
       # На ubuntu-раннере есть Docker, поэтому Testcontainers работают как есть.
-      - name: Integration tests
-        run: ./gradlew integrationTest
-
-      - name: Coverage report
-        run: ./gradlew jacocoTestReport jacocoTestCoverageVerification
+      # `build` доводит до конца: интеграционные тесты и порог покрытия по обоим прогонам.
+      - name: Build, integration tests & coverage
+        run: ./gradlew build
 
       - name: Publish test results
         if: always()

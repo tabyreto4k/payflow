@@ -1,0 +1,84 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-orders
+      author: payflow
+      changes:
+        - createTable:
+            tableName: orders
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: customer_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total
+                  type: numeric(19, 2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+        # Витрина заказов всегда фильтруется по владельцу — без этого индекса она уедет в seq scan.
+        - createIndex:
+            tableName: orders
+            indexName: ix_orders_customer_id
+            columns:
+              - column:
+                  name: customer_id
+        - createTable:
+            tableName: order_items
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: order_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_order_items_order
+                    references: orders(id)
+                    deleteCascade: true
+              - column:
+                  name: product_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: quantity
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: price
+                  type: numeric(19, 2)
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: order_items
+            indexName: ix_order_items_order_id
+            columns:
+              - column:
+                  name: order_id
+        - sql:
+            sql: >-
+              ALTER TABLE order_items
+              ADD CONSTRAINT ck_order_items_positive CHECK (quantity > 0 AND price > 0)
+            rollback: ALTER TABLE order_items DROP CONSTRAINT ck_order_items_positive
