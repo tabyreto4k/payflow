@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 0004-outbox
       author: payflow
+      logicalFilePath: db/changelog/changes/0004-outbox.yaml
       changes:
         - createTable:
             tableName: outbox

@@ -6,6 +6,7 @@ databaseChangeLog:
   - changeSet:
       id: 0005-drop-accounts
       author: payflow
+      logicalFilePath: db/changelog/changes/0005-drop-account-tables.yaml
       preConditions:
         - onFail: MARK_RAN
         - onError: MARK_RAN
@@ -18,6 +19,7 @@ databaseChangeLog:
   - changeSet:
       id: 0005-drop-idempotency-keys
       author: payflow
+      logicalFilePath: db/changelog/changes/0005-drop-account-tables.yaml
       preConditions:
         - onFail: MARK_RAN
         - onError: MARK_RAN

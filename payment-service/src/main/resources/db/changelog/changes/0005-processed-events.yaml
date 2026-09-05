@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 0005-processed-events
       author: payflow
+      logicalFilePath: db/changelog/changes/0005-processed-events.yaml
       changes:
         # Первый слой идемпотентности: eventId уже обработанного события. Конфликт первичного
         # ключа и есть признак повторной доставки — брокер обещает at-least-once, и это измерено.

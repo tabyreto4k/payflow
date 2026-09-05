@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 0001-accounts
       author: payflow
+      logicalFilePath: db/changelog/changes/0001-accounts.yaml
       changes:
         - createTable:
             tableName: accounts

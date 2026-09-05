@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 0006-processed-events
       author: payflow
+      logicalFilePath: db/changelog/changes/0006-processed-events.yaml
       changes:
         # Номер 0006, а не 0005: тот занят удалением таблиц счетов, оставшихся после распила.
         - createTable:

@@ -2,6 +2,7 @@ databaseChangeLog:
   - changeSet:
       id: 0002-idempotency-keys
       author: payflow
+      logicalFilePath: db/changelog/changes/0002-idempotency-keys.yaml
       changes:
         - createTable:
             tableName: idempotency_keys

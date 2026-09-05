@@ -1,8 +1,9 @@
-### Сценарий проверки после распила: счета живут в payment-service, заказы — в order-service.
+### Сценарий саги: счета в payment-service, заказы в order-service, оплата асинхронная.
 ### Порядок важен: запросы передают друг другу id через переменные.
-### Два сервиса разводятся по портам:
-###   ORDERS_DB_URL=... ./gradlew :order-service:bootRun
-###   PAYMENTS_DB_URL=... SERVER_PORT=8081 ./gradlew :payment-service:bootRun
+###
+### Проще всего поднять стенд целиком: docker compose up -d --wait
+### (order-service на 8080, payment-service на 8081). То же самое без ручного тыканья —
+### scripts/e2e-saga.sh.
 
 @orders = http://localhost:8080
 @payments = http://localhost:8081
@@ -48,7 +49,7 @@ Idempotency-Key: {{idempotencyKey}}
   "amount": 50.00
 }
 
-### Заказ на 40 → AWAITING_PAYMENT: списывать некому, пока нет Kafka
+### Заказ на 40 → AWAITING_PAYMENT. Оплата поедет сагой через Kafka, не этим ответом.
 POST {{orders}}/api/v1/orders
 Content-Type: application/json
 X-Customer-Id: {{customerId}}
@@ -61,19 +62,36 @@ X-Customer-Id: {{customerId}}
 
 > {% client.global.set("orderId", response.body.id); %}
 
-### Заказ виден владельцу
+### Через секунду-две статус станет PAID: outbox → orders.created → списание →
+### payments.completed → markPaid. Повторять, пока не сменится.
 GET {{orders}}/api/v1/orders/{{orderId}}
+X-Customer-Id: {{customerId}}
+
+### Баланс после оплаты — 110
+GET {{payments}}/api/v1/accounts/{{accountId}}
+
+### Заказ на 1000 при балансе 110 → сага вернёт CANCELLED, компенсация оплаты
+POST {{orders}}/api/v1/orders
+Content-Type: application/json
+X-Customer-Id: {{customerId}}
+
+{
+  "items": [
+    { "productId": "55555555-5555-5555-5555-555555555555", "quantity": 1, "price": 1000.00 }
+  ]
+}
+
+> {% client.global.set("poorOrderId", response.body.id); %}
+
+### Повторять, пока не станет CANCELLED
+GET {{orders}}/api/v1/orders/{{poorOrderId}}
 X-Customer-Id: {{customerId}}
 
 ### Чужому — 404, а не 403
 GET {{orders}}/api/v1/orders/{{orderId}}
 X-Customer-Id: {{stranger}}
 
-### Ждущий оплаты заказ отменяется — 200, статус CANCELLED
-POST {{orders}}/api/v1/orders/{{orderId}}/cancel
-X-Customer-Id: {{customerId}}
-
-### Повторная отмена — 409, переход из CANCELLED запрещён
+### Оплаченный заказ не отменить — 409
 POST {{orders}}/api/v1/orders/{{orderId}}/cancel
 X-Customer-Id: {{customerId}}
 
@@ -89,9 +107,6 @@ X-Customer-Id: {{customerId}}
 {
   "items": []
 }
-
-### Баланс так и остался 150: заказы больше не трогают счёт
-GET {{payments}}/api/v1/accounts/{{accountId}}
 
 ### Несуществующий счёт — 404
 GET {{payments}}/api/v1/accounts/99999999-9999-9999-9999-999999999999

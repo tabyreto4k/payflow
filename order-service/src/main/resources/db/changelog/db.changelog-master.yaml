@@ -1,3 +1,6 @@
+# У каждого changeset'а зафиксирован logicalFilePath. Без него имя файла берётся из физического
+# пути, а он разный при запуске из исходников и из bootJar (BOOT-INF/classes/...), — Liquibase
+# считал бы это разными changeset'ами и переприменял бы миграции на уже накатанной базе.
 databaseChangeLog:
   - includeAll:
       path: db/changelog/changes

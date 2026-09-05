@@ -16,3 +16,7 @@ dependencies {
   "integrationTestImplementation"("org.springframework.boot:spring-boot-testcontainers")
   "integrationTestImplementation"("org.testcontainers:junit-jupiter")
 }
+
+// Сервис поставляется bootJar'ом, обычный jar никому не нужен. Пока он собирался, в build/libs
+// лежало два архива, и шаблон *.jar в Dockerfile выхватывал -plain.jar без манифеста.
+tasks.named("jar") { enabled = false }
