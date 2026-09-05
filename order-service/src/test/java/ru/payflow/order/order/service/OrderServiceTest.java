@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,7 +17,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.payflow.order.account.service.AccountService;
 import ru.payflow.order.exception.IllegalStateTransitionException;
-import ru.payflow.order.exception.NotFoundException;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderItemRequest;
 import ru.payflow.order.order.dto.OrderResponse;
@@ -34,6 +32,9 @@ class OrderServiceTest {
 
     @Mock
     private OrderRepository orders;
+
+    @Mock
+    private OrderQueryService queries;
 
     @Mock
     private AccountService accounts;
@@ -64,29 +65,12 @@ class OrderServiceTest {
     }
 
     @Test
-    void strangersOrderLooksMissing() {
-        UUID orderId = UUID.randomUUID();
-        when(orders.findWithItems(orderId)).thenReturn(Optional.of(order()));
-
-        assertThatExceptionOfType(NotFoundException.class)
-                .isThrownBy(() -> service.getById(UUID.randomUUID(), orderId));
-    }
-
-    @Test
-    void unknownOrderIsNotFound() {
-        UUID orderId = UUID.randomUUID();
-        when(orders.findWithItems(orderId)).thenReturn(Optional.empty());
-
-        assertThatExceptionOfType(NotFoundException.class).isThrownBy(() -> service.getById(CUSTOMER, orderId));
-    }
-
-    @Test
     void paidOrderCannotBeCancelled() {
         UUID orderId = UUID.randomUUID();
         Order paid = order();
         paid.awaitPayment();
         paid.markPaid();
-        when(orders.findWithItems(orderId)).thenReturn(Optional.of(paid));
+        when(queries.ownOrder(CUSTOMER, orderId)).thenReturn(paid);
 
         assertThatExceptionOfType(IllegalStateTransitionException.class)
                 .isThrownBy(() -> service.cancel(CUSTOMER, orderId));
@@ -97,7 +81,7 @@ class OrderServiceTest {
         UUID orderId = UUID.randomUUID();
         Order awaiting = order();
         awaiting.awaitPayment();
-        when(orders.findWithItems(orderId)).thenReturn(Optional.of(awaiting));
+        when(queries.ownOrder(CUSTOMER, orderId)).thenReturn(awaiting);
 
         assertThat(service.cancel(CUSTOMER, orderId).status()).isEqualTo(OrderStatus.CANCELLED);
     }

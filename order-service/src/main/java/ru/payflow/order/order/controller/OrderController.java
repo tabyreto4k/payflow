@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderResponse;
+import ru.payflow.order.order.service.OrderQueryService;
 import ru.payflow.order.order.service.OrderService;
 
 @RestController
@@ -22,9 +23,11 @@ import ru.payflow.order.order.service.OrderService;
 public class OrderController {
 
     private final OrderService orders;
+    private final OrderQueryService queries;
 
-    public OrderController(OrderService orders) {
+    public OrderController(OrderService orders, OrderQueryService queries) {
         this.orders = orders;
+        this.queries = queries;
     }
 
     @PostMapping
@@ -37,12 +40,12 @@ public class OrderController {
 
     @GetMapping("/{id}")
     public OrderResponse getById(@RequestHeader("X-Customer-Id") UUID customerId, @PathVariable UUID id) {
-        return orders.getById(customerId, id);
+        return queries.getById(customerId, id);
     }
 
     @GetMapping
     public PagedModel<OrderResponse> list(@RequestHeader("X-Customer-Id") UUID customerId, Pageable pageable) {
-        return new PagedModel<>(orders.list(customerId, pageable));
+        return new PagedModel<>(queries.list(customerId, pageable));
     }
 
     @PostMapping("/{id}/cancel")
