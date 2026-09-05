@@ -38,9 +38,13 @@ Docker · GitHub Actions
 ## Запуск
 
 ```bash
-cp .env.example .env
+cp .env.example .env   # пароли надо заполнить: пустой postgres не примет
 docker compose up -d --wait
 ```
+
+Поднимается инфраструктура: postgres (`5432`), kafka (`29092` с хоста, `kafka:9092`
+внутри сети), redis (`6379`), mailhog (`8025` — веб-интерфейс), prometheus (`9090`),
+grafana (`3000`). Сами сервисы приезжают в compose по мере готовности.
 
 Образы каждой ревизии `main` — в GHCR: `ghcr.io/tabyreto4k/payflow/<сервис>:main`.
 
