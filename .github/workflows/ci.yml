@@ -66,6 +66,7 @@ jobs:
           sed -i 's/^POSTGRES_ORDERS_PASSWORD=$/POSTGRES_ORDERS_PASSWORD=orders_pwd/' .env
           sed -i 's/^POSTGRES_PAYMENTS_PASSWORD=$/POSTGRES_PAYMENTS_PASSWORD=payments_pwd/' .env
           sed -i 's/^GRAFANA_ADMIN_PASSWORD=$/GRAFANA_ADMIN_PASSWORD=admin/' .env
+          sed -i 's/^JWT_SECRET=$/JWT_SECRET=ci-only-signing-key-32-bytes-min/' .env
 
       - name: Start the stack
         run: docker compose up -d --wait

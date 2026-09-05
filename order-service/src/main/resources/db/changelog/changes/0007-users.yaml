@@ -1,0 +1,39 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0007-users
+      author: payflow
+      logicalFilePath: db/changelog/changes/0007-users.yaml
+      changes:
+        # Пользователи живут в orders_db: auth — фича order-service, отдельного сервиса нет [Р4].
+        - createTable:
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: email
+                  type: varchar(320)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_users_email
+              # BCrypt всегда выдаёт ровно 60 символов.
+              - column:
+                  name: password_hash
+                  type: varchar(60)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false

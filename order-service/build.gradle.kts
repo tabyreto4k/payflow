@@ -7,6 +7,9 @@ dependencies {
 
   implementation("org.springframework.boot:spring-boot-starter-web")
   implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+  implementation("org.springframework.boot:spring-boot-starter-security")
+  // Только выпуск и разбор HS256-токенов (NimbusJwtEncoder/NimbusJwtDecoder), без resource server.
+  implementation("org.springframework.security:spring-security-oauth2-jose")
   implementation("org.liquibase:liquibase-core")
   implementation("org.springframework.kafka:spring-kafka")
   runtimeOnly("org.postgresql:postgresql")
