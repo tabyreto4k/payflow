@@ -1,0 +1,24 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-idempotency-keys
+      author: payflow
+      changes:
+        - createTable:
+            tableName: idempotency_keys
+            columns:
+              - column:
+                  name: key
+                  type: varchar(128)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: response
+                  type: jsonb
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false

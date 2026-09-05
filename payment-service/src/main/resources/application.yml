@@ -1,11 +1,27 @@
 spring:
   application:
     name: payment-service
+  datasource:
+    url: ${PAYMENTS_DB_URL:jdbc:postgresql://localhost:5432/payments_db}
+    username: ${POSTGRES_PAYMENTS_USER:payments_user}
+    password: ${POSTGRES_PAYMENTS_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
   threads:
     virtual:
       enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 20s
+
+  mvc:
+    problemdetails:
+      enabled: true
 
 server:
   port: ${SERVER_PORT:8080}

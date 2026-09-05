@@ -17,8 +17,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.support.TransactionTemplate;
 import ru.payflow.order.PostgresIT;
-import ru.payflow.order.account.dto.CreateAccountRequest;
-import ru.payflow.order.account.service.AccountService;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderItemRequest;
 import ru.payflow.order.order.model.Order;
@@ -41,9 +39,6 @@ class NPlusOneIT extends PostgresIT {
 
     @Autowired
     private TransactionTemplate transaction;
-
-    @Autowired
-    private AccountService accounts;
 
     @Autowired
     private OrderService orders;
@@ -97,7 +92,6 @@ class NPlusOneIT extends PostgresIT {
 
     private UUID customerWithOrders(int count) {
         UUID customerId = UUID.randomUUID();
-        accounts.open(new CreateAccountRequest(customerId, new BigDecimal("1000.00")));
         for (int i = 0; i < count; i++) {
             orders.create(
                     customerId,

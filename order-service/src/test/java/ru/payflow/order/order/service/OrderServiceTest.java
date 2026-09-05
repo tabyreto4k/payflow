@@ -3,8 +3,6 @@ package ru.payflow.order.order.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -15,7 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.payflow.order.account.service.AccountService;
 import ru.payflow.order.exception.IllegalStateTransitionException;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderItemRequest;
@@ -36,32 +33,19 @@ class OrderServiceTest {
     @Mock
     private OrderQueryService queries;
 
-    @Mock
-    private AccountService accounts;
-
     @InjectMocks
     private OrderService service;
 
     @Test
-    void paidWhenAccountHasEnoughMoney() {
-        when(accounts.charge(eq(CUSTOMER), any(BigDecimal.class))).thenReturn(true);
+    void createdOrderWaitsForPayment() {
         when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         OrderResponse response = service.create(CUSTOMER, request("20.00", 2));
 
-        assertThat(response.status()).isEqualTo(OrderStatus.PAID);
+        // Оплата уехала в payment-service и ещё не подключена через Kafka: дальше AWAITING_PAYMENT
+        // заказ сам не двигается.
+        assertThat(response.status()).isEqualTo(OrderStatus.AWAITING_PAYMENT);
         assertThat(response.total()).isEqualByComparingTo("40.00");
-        verify(accounts).charge(CUSTOMER, new BigDecimal("40.00"));
-    }
-
-    @Test
-    void cancelledWhenMoneyIsShort() {
-        when(accounts.charge(eq(CUSTOMER), any(BigDecimal.class))).thenReturn(false);
-        when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        OrderResponse response = service.create(CUSTOMER, request("100.00", 2));
-
-        assertThat(response.status()).isEqualTo(OrderStatus.CANCELLED);
     }
 
     @Test

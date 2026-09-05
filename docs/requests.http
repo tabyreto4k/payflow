@@ -1,13 +1,17 @@
-### Сценарий проверки order-service.
+### Сценарий проверки после распила: счета живут в payment-service, заказы — в order-service.
 ### Порядок важен: запросы передают друг другу id через переменные.
+### Два сервиса разводятся по портам:
+###   ORDERS_DB_URL=... ./gradlew :order-service:bootRun
+###   PAYMENTS_DB_URL=... SERVER_PORT=8081 ./gradlew :payment-service:bootRun
 
-@host = http://localhost:8080
+@orders = http://localhost:8080
+@payments = http://localhost:8081
 @customerId = 11111111-1111-1111-1111-111111111111
 @stranger = 22222222-2222-2222-2222-222222222222
 @idempotencyKey = 33333333-3333-3333-3333-333333333333
 
 ### Открыть счёт на 100
-POST {{host}}/api/v1/accounts
+POST {{payments}}/api/v1/accounts
 Content-Type: application/json
 
 {
@@ -18,7 +22,7 @@ Content-Type: application/json
 > {% client.global.set("accountId", response.body.id); %}
 
 ### Второй счёт тому же покупателю — 409
-POST {{host}}/api/v1/accounts
+POST {{payments}}/api/v1/accounts
 Content-Type: application/json
 
 {
@@ -27,7 +31,7 @@ Content-Type: application/json
 }
 
 ### Пополнить на 50 → баланс 150
-POST {{host}}/api/v1/accounts/{{accountId}}/deposit
+POST {{payments}}/api/v1/accounts/{{accountId}}/deposit
 Content-Type: application/json
 Idempotency-Key: {{idempotencyKey}}
 
@@ -36,7 +40,7 @@ Idempotency-Key: {{idempotencyKey}}
 }
 
 ### Повтор того же запроса — ответ тот же, баланс не меняется
-POST {{host}}/api/v1/accounts/{{accountId}}/deposit
+POST {{payments}}/api/v1/accounts/{{accountId}}/deposit
 Content-Type: application/json
 Idempotency-Key: {{idempotencyKey}}
 
@@ -44,8 +48,8 @@ Idempotency-Key: {{idempotencyKey}}
   "amount": 50.00
 }
 
-### Заказ на 40 → PAID, баланс 110
-POST {{host}}/api/v1/orders
+### Заказ на 40 → AWAITING_PAYMENT: списывать некому, пока нет Kafka
+POST {{orders}}/api/v1/orders
 Content-Type: application/json
 X-Customer-Id: {{customerId}}
 
@@ -58,37 +62,27 @@ X-Customer-Id: {{customerId}}
 > {% client.global.set("orderId", response.body.id); %}
 
 ### Заказ виден владельцу
-GET {{host}}/api/v1/orders/{{orderId}}
+GET {{orders}}/api/v1/orders/{{orderId}}
 X-Customer-Id: {{customerId}}
 
 ### Чужому — 404, а не 403
-GET {{host}}/api/v1/orders/{{orderId}}
+GET {{orders}}/api/v1/orders/{{orderId}}
 X-Customer-Id: {{stranger}}
 
-### Оплаченный заказ не отменить — 409
-POST {{host}}/api/v1/orders/{{orderId}}/cancel
+### Ждущий оплаты заказ отменяется — 200, статус CANCELLED
+POST {{orders}}/api/v1/orders/{{orderId}}/cancel
 X-Customer-Id: {{customerId}}
 
-### Заказ на 1000 при балансе 110 → CANCELLED
-POST {{host}}/api/v1/orders
-Content-Type: application/json
+### Повторная отмена — 409, переход из CANCELLED запрещён
+POST {{orders}}/api/v1/orders/{{orderId}}/cancel
 X-Customer-Id: {{customerId}}
-
-{
-  "items": [
-    { "productId": "55555555-5555-5555-5555-555555555555", "quantity": 1, "price": 1000.00 }
-  ]
-}
-
-### Баланс после обоих заказов — 110
-GET {{host}}/api/v1/accounts/{{accountId}}
 
 ### Список своих заказов
-GET {{host}}/api/v1/orders?page=0&size=10
+GET {{orders}}/api/v1/orders?page=0&size=10
 X-Customer-Id: {{customerId}}
 
 ### Заказ без позиций — 400 со списком полей
-POST {{host}}/api/v1/orders
+POST {{orders}}/api/v1/orders
 Content-Type: application/json
 X-Customer-Id: {{customerId}}
 
@@ -96,5 +90,8 @@ X-Customer-Id: {{customerId}}
   "items": []
 }
 
+### Баланс так и остался 150: заказы больше не трогают счёт
+GET {{payments}}/api/v1/accounts/{{accountId}}
+
 ### Несуществующий счёт — 404
-GET {{host}}/api/v1/accounts/99999999-9999-9999-9999-999999999999
+GET {{payments}}/api/v1/accounts/99999999-9999-9999-9999-999999999999
