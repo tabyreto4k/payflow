@@ -45,7 +45,7 @@ class OrderServiceTest {
     @Test
     void paidWhenAccountHasEnoughMoney() {
         when(accounts.charge(eq(CUSTOMER), any(BigDecimal.class))).thenReturn(true);
-        when(orders.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         OrderResponse response = service.create(CUSTOMER, request("20.00", 2));
 
@@ -57,7 +57,7 @@ class OrderServiceTest {
     @Test
     void cancelledWhenMoneyIsShort() {
         when(accounts.charge(eq(CUSTOMER), any(BigDecimal.class))).thenReturn(false);
-        when(orders.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         OrderResponse response = service.create(CUSTOMER, request("100.00", 2));
 

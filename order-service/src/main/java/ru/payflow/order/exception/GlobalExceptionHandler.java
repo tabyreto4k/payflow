@@ -32,14 +32,6 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Недопустимый переход статуса", e.getMessage());
     }
 
-    @ExceptionHandler(InsufficientFundsException.class)
-    public ProblemDetail handleInsufficientFunds(InsufficientFundsException e) {
-        ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_ENTITY, "Недостаточно средств", e.getMessage());
-        problem.setProperty("accountId", e.getAccountId());
-        problem.setProperty("requested", e.getRequested());
-        return problem;
-    }
-
     /** Инварианты entity бросают IllegalArgumentException — до них долетает только кривой ввод. */
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleIllegalArgument(IllegalArgumentException e) {

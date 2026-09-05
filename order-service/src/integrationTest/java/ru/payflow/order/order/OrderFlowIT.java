@@ -40,7 +40,8 @@ class OrderFlowIT extends PostgresIT {
         mockMvc.perform(createOrder(customer, "40.00", 1))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PAID"))
-                .andExpect(jsonPath("$.total").value(40.00));
+                .andExpect(jsonPath("$.total").value(40.00))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty());
 
         assertBalance(customer, 60.00);
     }

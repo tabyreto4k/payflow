@@ -41,7 +41,9 @@ public class OrderService {
         } else {
             order.cancel();
         }
-        return OrderResponse.from(orders.save(order));
+        // saveAndFlush, а не save: @CreationTimestamp проставляется на вставке, и без сброса
+        // в ответе на создание заказа уехал бы createdAt: null.
+        return OrderResponse.from(orders.saveAndFlush(order));
     }
 
     @Transactional
