@@ -8,10 +8,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.payflow.order.account.dto.AccountResponse;
 import ru.payflow.order.account.dto.CreateAccountRequest;
+import ru.payflow.order.account.dto.DepositRequest;
 import ru.payflow.order.account.model.Account;
 import ru.payflow.order.account.service.AccountService;
 
@@ -30,6 +32,14 @@ public class AccountController {
         Account account = accounts.open(request);
         return ResponseEntity.created(URI.create("/api/v1/accounts/" + account.getId()))
                 .body(AccountResponse.from(account));
+    }
+
+    @PostMapping("/{id}/deposit")
+    public AccountResponse deposit(
+            @PathVariable UUID id,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody DepositRequest request) {
+        return accounts.deposit(id, idempotencyKey, request);
     }
 
     @GetMapping("/{id}")

@@ -2,6 +2,8 @@ package ru.payflow.order.exception;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.validation.FieldError;
@@ -9,6 +11,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+// Spring со своим problemdetails-хендлером тоже разбирает ошибки валидации, но без списка полей.
+// Приоритет выше, чтобы клиент получал наш ответ, а спринговый оставался для всего остального.
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -33,6 +38,12 @@ public class GlobalExceptionHandler {
         problem.setProperty("accountId", e.getAccountId());
         problem.setProperty("requested", e.getRequested());
         return problem;
+    }
+
+    /** Инварианты entity бросают IllegalArgumentException — до них долетает только кривой ввод. */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail handleIllegalArgument(IllegalArgumentException e) {
+        return problem(HttpStatus.BAD_REQUEST, "Некорректный запрос", e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
