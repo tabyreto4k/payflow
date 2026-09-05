@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -68,7 +69,7 @@ class OrderTest {
 
     @ParameterizedTest(name = "{0} → {1}")
     @MethodSource("forbiddenTransitions")
-    void forbiddenTransitionIsRejected(OrderStatus from, OrderStatus to, Consumer<Order> transition) {
+    void forbiddenTransitionIsRejected(OrderStatus from, Consumer<Order> transition) {
         Order order = orderIn(from);
 
         assertThatExceptionOfType(IllegalStateTransitionException.class).isThrownBy(() -> transition.accept(order));
@@ -76,18 +77,20 @@ class OrderTest {
     }
 
     static List<Arguments> forbiddenTransitions() {
-        Consumer<Order> awaitPayment = Order::awaitPayment;
-        Consumer<Order> markPaid = Order::markPaid;
-        Consumer<Order> cancel = Order::cancel;
         return List.of(
-                Arguments.of(OrderStatus.NEW, OrderStatus.PAID, markPaid),
-                Arguments.of(OrderStatus.NEW, OrderStatus.CANCELLED, cancel),
-                Arguments.of(OrderStatus.AWAITING_PAYMENT, OrderStatus.AWAITING_PAYMENT, awaitPayment),
-                Arguments.of(OrderStatus.PAID, OrderStatus.PAID, markPaid),
-                Arguments.of(OrderStatus.PAID, OrderStatus.CANCELLED, cancel),
-                Arguments.of(OrderStatus.PAID, OrderStatus.AWAITING_PAYMENT, awaitPayment),
-                Arguments.of(OrderStatus.CANCELLED, OrderStatus.PAID, markPaid),
-                Arguments.of(OrderStatus.CANCELLED, OrderStatus.CANCELLED, cancel));
+                Arguments.of(OrderStatus.NEW, to(OrderStatus.PAID, Order::markPaid)),
+                Arguments.of(OrderStatus.NEW, to(OrderStatus.CANCELLED, Order::cancel)),
+                Arguments.of(OrderStatus.AWAITING_PAYMENT, to(OrderStatus.AWAITING_PAYMENT, Order::awaitPayment)),
+                Arguments.of(OrderStatus.PAID, to(OrderStatus.PAID, Order::markPaid)),
+                Arguments.of(OrderStatus.PAID, to(OrderStatus.CANCELLED, Order::cancel)),
+                Arguments.of(OrderStatus.PAID, to(OrderStatus.AWAITING_PAYMENT, Order::awaitPayment)),
+                Arguments.of(OrderStatus.CANCELLED, to(OrderStatus.PAID, Order::markPaid)),
+                Arguments.of(OrderStatus.CANCELLED, to(OrderStatus.CANCELLED, Order::cancel)));
+    }
+
+    /** Целевой статус живёт в имени кейса: тело теста проверяет, что переход не состоялся. */
+    private static Named<Consumer<Order>> to(OrderStatus target, Consumer<Order> transition) {
+        return Named.of(target.name(), transition);
     }
 
     private static Order orderIn(OrderStatus status) {
