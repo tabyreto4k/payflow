@@ -126,6 +126,34 @@ services:
       start_period: 60s
       retries: 20
 
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      ORDER_SERVICE_URI: http://order-service:8080
+      PAYMENT_SERVICE_URI: http://payment-service:8080
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      RATE_LIMIT_REPLENISH_RATE: ${RATE_LIMIT_REPLENISH_RATE}
+      RATE_LIMIT_BURST_CAPACITY: ${RATE_LIMIT_BURST_CAPACITY}
+    ports:
+      - '8000:8080'
+    depends_on:
+      redis:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:8080/actuator/health/readiness']
+      interval: 5s
+      timeout: 3s
+      start_period: 45s
+      retries: 20
+
   prometheus:
     image: prom/prometheus:v3.1.0
     command:
