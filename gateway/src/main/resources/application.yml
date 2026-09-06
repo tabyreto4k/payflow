@@ -25,6 +25,14 @@ spring:
               uri: ${PAYMENT_SERVICE_URI:http://localhost:8081}
               predicates:
                 - Path=/api/v1/accounts/**
+            - id: orders-api-docs
+              uri: ${ORDER_SERVICE_URI:http://localhost:8080}
+              predicates:
+                - Path=/v3/api-docs/orders
+            - id: payments-api-docs
+              uri: ${PAYMENT_SERVICE_URI:http://localhost:8081}
+              predicates:
+                - Path=/v3/api-docs/payments
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -34,6 +42,17 @@ spring:
       enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 20s
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    # Спеки живут в сервисах, UI — здесь: одна страница на весь периметр, переключатель
+    # сервисов в правом верхнем углу.
+    urls:
+      - name: order-service
+        url: /v3/api-docs/orders
+      - name: payment-service
+        url: /v3/api-docs/payments
 
 payflow:
   jwt:
@@ -57,7 +76,17 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    # Гистограмма по HTTP нужна дашборду: без бакетов p99 не посчитать, из таймера
+    # приезжают только count и sum.
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 logging:
+  # Логи структурные (ECS): их читает не человек в консоли, а сборщик. MDC уезжает в JSON полями,
+  # поэтому correlationId сразу становится фильтром, а не поводом писать регулярку.
+  structured:
+    format:
+      console: ecs
   level:
     root: INFO

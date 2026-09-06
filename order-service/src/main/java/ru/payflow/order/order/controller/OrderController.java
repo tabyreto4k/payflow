@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.data.web.PagedModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -44,7 +46,11 @@ public class OrderController {
     }
 
     @GetMapping
-    public PagedModel<OrderResponse> list(@AuthenticationPrincipal UUID customerId, Pageable pageable) {
+    public PagedModel<OrderResponse> list(
+            @AuthenticationPrincipal UUID customerId,
+            // Порядок по умолчанию задан явно: без сортировки страницы разъезжаются — вторая
+            // страница может показать то же, что первая, потому что порядок не гарантирован.
+            @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return new PagedModel<>(queries.list(customerId, pageable));
     }
 

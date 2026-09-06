@@ -17,13 +17,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import ru.payflow.payment.PostgresIT;
+import ru.payflow.payment.PaymentIT;
 import ru.payflow.payment.account.dto.AccountResponse;
 import ru.payflow.payment.account.dto.CreateAccountRequest;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class AccountControllerIT extends PostgresIT {
+class AccountControllerIT extends PaymentIT {
 
     private static final String CUSTOMER_ID = "X-Customer-Id";
 

@@ -44,6 +44,14 @@ spring:
     problemdetails:
       enabled: true
 
+springdoc:
+  api-docs:
+    # Путь свой у каждого сервиса: спеки собирает один Swagger UI на gateway, и по общему
+    # /v3/api-docs они бы столкнулись.
+    path: /v3/api-docs/orders
+  swagger-ui:
+    enabled: false
+
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
@@ -61,6 +69,11 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    # Гистограмма по HTTP нужна дашборду: без бакетов p99 не посчитать, из таймера
+    # приезжают только count и sum.
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 payflow:
   jwt:
@@ -73,5 +86,10 @@ payflow:
     poll-interval: ${OUTBOX_POLL_INTERVAL:PT0.2S}
 
 logging:
+  # Логи структурные (ECS): их читает не человек в консоли, а сборщик. MDC уезжает в JSON полями,
+  # поэтому correlationId сразу становится фильтром, а не поводом писать регулярку.
+  structured:
+    format:
+      console: ecs
   level:
     root: INFO

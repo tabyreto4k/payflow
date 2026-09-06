@@ -34,6 +34,10 @@ spring:
       auto-offset-reset: earliest
     listener:
       ack-mode: record
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   threads:
     virtual:
       enabled: true
@@ -43,6 +47,12 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs/payments
+  swagger-ui:
+    enabled: false
 
 server:
   port: ${SERVER_PORT:8080}
@@ -61,12 +71,25 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    # Гистограмма по HTTP нужна дашборду: без бакетов p99 не посчитать, из таймера
+    # приезжают только count и sum.
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 payflow:
+  cache:
+    # Минута: баланс — горячая запись, дольше держать протухшее значение незачем.
+    balance-ttl: ${BALANCE_CACHE_TTL:PT60S}
   outbox:
     batch-size: ${OUTBOX_BATCH_SIZE:100}
     poll-interval: ${OUTBOX_POLL_INTERVAL:PT0.2S}
 
 logging:
+  # Логи структурные (ECS): их читает не человек в консоли, а сборщик. MDC уезжает в JSON полями,
+  # поэтому correlationId сразу становится фильтром, а не поводом писать регулярку.
+  structured:
+    format:
+      console: ecs
   level:
     root: INFO

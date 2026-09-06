@@ -2,7 +2,6 @@ package ru.payflow.payment.account.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -15,6 +14,7 @@ import ru.payflow.payment.account.model.Account;
 import ru.payflow.payment.account.model.IdempotencyKey;
 import ru.payflow.payment.account.repository.AccountRepository;
 import ru.payflow.payment.account.repository.IdempotencyKeyRepository;
+import ru.payflow.payment.cache.BalanceCache;
 import ru.payflow.payment.exception.AccountAlreadyExistsException;
 import ru.payflow.payment.exception.NotFoundException;
 
@@ -23,11 +23,17 @@ public class AccountService {
 
     private final AccountRepository accounts;
     private final IdempotencyKeyRepository idempotencyKeys;
+    private final BalanceCache cache;
     private final ObjectMapper json;
 
-    public AccountService(AccountRepository accounts, IdempotencyKeyRepository idempotencyKeys, ObjectMapper json) {
+    public AccountService(
+            AccountRepository accounts,
+            IdempotencyKeyRepository idempotencyKeys,
+            BalanceCache cache,
+            ObjectMapper json) {
         this.accounts = accounts;
         this.idempotencyKeys = idempotencyKeys;
+        this.cache = cache;
         this.json = json;
     }
 
@@ -57,33 +63,30 @@ public class AccountService {
         }
 
         account.deposit(request.amount());
+        cache.evictAfterCommit(accountId);
         AccountResponse response = AccountResponse.from(account);
         idempotencyKeys.save(new IdempotencyKey(idempotencyKey, writeResponse(response)));
         return response;
     }
 
     /**
-     * Списывает сумму со счёта покупателя, держа строку под блокировкой до конца транзакции.
-     *
-     * @return {@code false}, если денег не хватило — это один из двух ожидаемых исходов оплаты,
-     *     а не сбой, поэтому исключением он не выражается
+     * Чтение баланса идёт через кэш: владелец проверяется и на попадании — в кэше лежит ответ
+     * целиком, вместе с {@code customerId}, поэтому чужой счёт остаётся невидимым.
      */
-    @Transactional
-    public boolean charge(UUID customerId, BigDecimal amount) {
-        Account account = accounts.findByCustomerIdForUpdate(customerId)
-                .orElseThrow(() -> new NotFoundException("У покупателя %s нет счёта".formatted(customerId)));
-        if (account.getBalance().compareTo(amount) < 0) {
-            return false;
-        }
-        account.withdraw(amount);
-        return true;
-    }
-
     @Transactional(readOnly = true)
-    public Account getById(UUID customerId, UUID id) {
-        return accounts.findById(id)
+    public AccountResponse getById(UUID customerId, UUID id) {
+        Optional<AccountResponse> cached = cache.find(id);
+        if (cached.isPresent()) {
+            return cached.filter(response -> response.customerId().equals(customerId))
+                    .orElseThrow(() -> new NotFoundException("Счёт %s не найден".formatted(id)));
+        }
+
+        AccountResponse response = accounts.findById(id)
                 .filter(owned(customerId))
+                .map(AccountResponse::from)
                 .orElseThrow(() -> new NotFoundException("Счёт %s не найден".formatted(id)));
+        cache.put(response);
+        return response;
     }
 
     /** Чужой счёт отвечает 404, а не 403: существование чужих счетов клиента не касается. */

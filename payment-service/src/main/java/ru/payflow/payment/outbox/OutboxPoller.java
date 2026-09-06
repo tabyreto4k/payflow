@@ -1,7 +1,9 @@
 package ru.payflow.payment.outbox;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -9,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import ru.payflow.payment.config.OutboxProperties;
+import ru.payflow.payment.logging.CorrelationId;
 import ru.payflow.payment.outbox.model.OutboxEvent;
 import ru.payflow.payment.outbox.repository.OutboxRepository;
 
@@ -55,7 +58,7 @@ public class OutboxPoller {
         Instant now = Instant.now();
         for (OutboxEvent event : batch) {
             try {
-                kafka.send(event.getTopic(), event.getKey(), event.getPayload()).get();
+                kafka.send(record(event)).get();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new OutboxPublishException(event, e);
@@ -67,5 +70,18 @@ public class OutboxPoller {
 
         LOG.info("Отправлено событий из outbox: {}", batch.size());
         return batch.size();
+    }
+
+    /**
+     * Идентификатор запроса уезжает заголовком записи: у потребителя другого способа узнать, из
+     * какого похода клиента выросло событие, нет — payload его не несёт и нести не должен.
+     */
+    private static ProducerRecord<String, String> record(OutboxEvent event) {
+        ProducerRecord<String, String> record =
+                new ProducerRecord<>(event.getTopic(), null, event.getKey(), event.getPayload());
+        if (event.getCorrelationId() != null) {
+            record.headers().add(CorrelationId.HEADER, event.getCorrelationId().getBytes(StandardCharsets.UTF_8));
+        }
+        return record;
     }
 }

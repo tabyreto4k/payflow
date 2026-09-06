@@ -1,0 +1,14 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0006-outbox-correlation
+      author: payflow
+      logicalFilePath: db/changelog/changes/0006-outbox-correlation.yaml
+      changes:
+        # Событие уезжает в Kafka не в том потоке, где родилось: идентификатор запроса надо
+        # донести до отправки, иначе цепочка обрывается на границе сервиса.
+        - addColumn:
+            tableName: outbox
+            columns:
+              - column:
+                  name: correlation_id
+                  type: varchar(64)

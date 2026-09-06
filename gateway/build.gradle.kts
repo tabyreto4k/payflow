@@ -14,6 +14,8 @@ dependencyManagement {
 
 dependencies {
   implementation("org.springframework.cloud:spring-cloud-starter-gateway")
+  // Один Swagger UI на весь периметр: спеки сервисов подключены к нему списком.
+  implementation(libs.springdoc.webflux.ui)
   // Rate limiter Spring Cloud Gateway держит счётчики в Redis: инстансов gateway может быть много.
   implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
   // Только разбор HS256-токенов; выпускает их order-service.

@@ -16,6 +16,7 @@ import ru.payflow.order.auth.service.AuthService;
 import ru.payflow.order.consumer.model.ProcessedEvent;
 import ru.payflow.order.consumer.repository.ProcessedEventRepository;
 import ru.payflow.order.exception.NotFoundException;
+import ru.payflow.order.logging.CorrelationId;
 import ru.payflow.order.order.dto.CreateOrderRequest;
 import ru.payflow.order.order.dto.OrderResponse;
 import ru.payflow.order.order.model.Order;
@@ -77,7 +78,10 @@ public class OrderService {
                 customerEmail,
                 order.getTotal(),
                 Instant.now());
-        return new OutboxEvent(Topics.ORDERS_CREATED, order.getId().toString(), serialize(event));
+        // Идентификатор запроса едет в строке outbox: отправляет её поллер, в другом потоке и
+        // позже, и MDC там уже чужой.
+        return new OutboxEvent(
+                Topics.ORDERS_CREATED, order.getId().toString(), serialize(event), CorrelationId.current());
     }
 
     private String serialize(OrderCreatedEvent event) {

@@ -29,7 +29,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import ru.payflow.events.OrderCreatedEvent;
 import ru.payflow.events.PaymentCompletedEvent;
 import ru.payflow.events.Topics;
-import ru.payflow.payment.PostgresIT;
+import ru.payflow.payment.PaymentIT;
 import ru.payflow.payment.account.model.Account;
 import ru.payflow.payment.account.repository.AccountRepository;
 import ru.payflow.payment.outbox.model.OutboxEvent;
@@ -44,7 +44,7 @@ import ru.payflow.payment.payment.service.PaymentService;
  * через брокер порядок доставки повторов не наблюдаем, и тест ловил бы гонку вместо логики.
  */
 @SpringBootTest
-class OrderCreatedConsumerIT extends PostgresIT {
+class OrderCreatedConsumerIT extends PaymentIT {
 
     @ServiceConnection
     static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka:3.9.1");

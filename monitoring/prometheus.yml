@@ -7,4 +7,13 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # Сервисы появятся здесь вместе с actuator/prometheus (Заход 6).
+  # Сервисы живут в сети compose и наружу не смотрят: Prometheus ходит к ним по именам.
+  # Метрики отдаёт actuator, путь у всех одинаковый.
+  - job_name: payflow
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - 'gateway:8080'
+          - 'order-service:8080'
+          - 'payment-service:8080'
+          - 'notification-service:8080'

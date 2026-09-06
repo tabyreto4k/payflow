@@ -46,6 +46,9 @@ public class SecurityConfig {
                 .addFilterBefore(new CustomerHeaderAuthenticationFilter(), AuthorizationFilter.class)
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/api/v1/auth/**")
                         .permitAll()
+                        // Спека открыта: Swagger UI на gateway забирает её без токена.
+                        .requestMatchers(HttpMethod.GET, "/v3/api-docs/**")
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/**")
                         .permitAll()
                         .anyRequest()

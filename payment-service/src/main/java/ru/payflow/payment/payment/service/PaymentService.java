@@ -14,8 +14,10 @@ import ru.payflow.events.PaymentFailedEvent;
 import ru.payflow.events.Topics;
 import ru.payflow.payment.account.model.Account;
 import ru.payflow.payment.account.repository.AccountRepository;
+import ru.payflow.payment.cache.BalanceCache;
 import ru.payflow.payment.consumer.model.ProcessedEvent;
 import ru.payflow.payment.consumer.repository.ProcessedEventRepository;
+import ru.payflow.payment.logging.CorrelationId;
 import ru.payflow.payment.outbox.model.OutboxEvent;
 import ru.payflow.payment.outbox.repository.OutboxRepository;
 import ru.payflow.payment.payment.model.Payment;
@@ -30,6 +32,7 @@ public class PaymentService {
     static final String ACCOUNT_NOT_FOUND = "account_not_found";
 
     private final AccountRepository accounts;
+    private final BalanceCache cache;
     private final PaymentRepository payments;
     private final ProcessedEventRepository processedEvents;
     private final OutboxRepository outbox;
@@ -37,11 +40,13 @@ public class PaymentService {
 
     public PaymentService(
             AccountRepository accounts,
+            BalanceCache cache,
             PaymentRepository payments,
             ProcessedEventRepository processedEvents,
             OutboxRepository outbox,
             ObjectMapper json) {
         this.accounts = accounts;
+        this.cache = cache;
         this.payments = payments;
         this.processedEvents = processedEvents;
         this.outbox = outbox;
@@ -82,6 +87,8 @@ public class PaymentService {
             return;
         }
         account.withdraw(event.amount());
+        // Списание саги идёт мимо AccountService, поэтому кэш выбрасывается здесь же.
+        cache.evictAfterCommit(account.getId());
         payments.save(Payment.completed(event.orderId(), event.customerId(), event.amount()));
         publish(
                 Topics.PAYMENTS_COMPLETED,
@@ -106,7 +113,8 @@ public class PaymentService {
     }
 
     private void publish(String topic, UUID orderId, Object event) {
-        outbox.save(new OutboxEvent(topic, orderId.toString(), serialize(event)));
+        // Идентификатор тот же, что у события, которое сюда привело: цепочка не рвётся на сервисе.
+        outbox.save(new OutboxEvent(topic, orderId.toString(), serialize(event), CorrelationId.current()));
     }
 
     private String serialize(Object event) {
