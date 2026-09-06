@@ -91,7 +91,7 @@ class NPlusOneIT extends PostgresIT {
     }
 
     private UUID customerWithOrders(int count) {
-        UUID customerId = UUID.randomUUID();
+        UUID customerId = registerCustomer();
         for (int i = 0; i < count; i++) {
             orders.create(
                     customerId,

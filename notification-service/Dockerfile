@@ -8,6 +8,8 @@ RUN ./gradlew --version --no-daemon
 COPY settings.gradle.kts build.gradle.kts ./
 COPY build-logic build-logic
 COPY config config
+# Модуль перечислен в settings.gradle.kts: без него сборка не сконфигурируется.
+COPY events-contract events-contract
 COPY notification-service notification-service
 RUN ./gradlew :notification-service:bootJar --no-daemon -x test \
     && java -Djarmode=tools -jar notification-service/build/libs/*.jar extract --layers --launcher --destination extracted

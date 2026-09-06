@@ -94,8 +94,8 @@ class OrderFlowIT extends PostgresIT {
                 .andExpect(jsonPath("$.errors.items").exists());
     }
 
-    private static UUID customer() {
-        return UUID.randomUUID();
+    private UUID customer() {
+        return registerCustomer();
     }
 
     private RequestBuilder createOrder(UUID customer, String price, int quantity) throws Exception {

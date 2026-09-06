@@ -124,7 +124,7 @@ Content-Type: application/json
 > {% client.global.set("orderId", response.body.id); %}
 
 ### Через секунду-две статус станет PAID: outbox → orders.created → списание →
-### payments.completed → markPaid. Повторять, пока не сменится.
+### payments.completed → markPaid, и туда же уходит письмо. Повторять, пока не сменится.
 GET {{host}}/api/v1/orders/{{orderId}}
 Authorization: Bearer {{token}}
 
@@ -197,6 +197,9 @@ Content-Type: application/json
 ### Несуществующий счёт — 404
 GET {{host}}/api/v1/accounts/99999999-9999-9999-9999-999999999999
 Authorization: Bearer {{token}}
+
+### Письма об исходе оплаты — в MailHog: http://localhost:8025 (там же видно письмо об отказе).
+GET http://localhost:8025/api/v2/messages?limit=5
 
 ### Ограничитель: при 20 запросах в секунду (ведро на 40) серия подряд упирается в 429.
 ### Отправить этот запрос несколько десятков раз подряд — увидеть 429.

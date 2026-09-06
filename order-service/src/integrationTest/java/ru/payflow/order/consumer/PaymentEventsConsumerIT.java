@@ -84,7 +84,7 @@ class PaymentEventsConsumerIT extends PostgresIT {
     void completedPaymentMovesTheOrderToPaid() throws Exception {
         UUID orderId = createOrder();
 
-        send(Topics.PAYMENTS_COMPLETED, orderId, new PaymentCompletedEvent(UUID.randomUUID(), orderId, Instant.now()));
+        send(Topics.PAYMENTS_COMPLETED, orderId, completed(UUID.randomUUID(), orderId));
 
         awaitStatus(orderId, OrderStatus.PAID);
     }
@@ -96,7 +96,13 @@ class PaymentEventsConsumerIT extends PostgresIT {
         send(
                 Topics.PAYMENTS_FAILED,
                 orderId,
-                new PaymentFailedEvent(UUID.randomUUID(), orderId, "insufficient_funds", Instant.now()));
+                new PaymentFailedEvent(
+                        UUID.randomUUID(),
+                        orderId,
+                        "it@payflow.ru",
+                        new BigDecimal("10.00"),
+                        "insufficient_funds",
+                        Instant.now()));
 
         awaitStatus(orderId, OrderStatus.CANCELLED);
     }
@@ -104,7 +110,7 @@ class PaymentEventsConsumerIT extends PostgresIT {
     @Test
     void duplicateOutcomeMovesTheStatusOnceAndDoesNotPoisonThePartition() throws Exception {
         UUID orderId = createOrder();
-        PaymentCompletedEvent event = new PaymentCompletedEvent(UUID.randomUUID(), orderId, Instant.now());
+        PaymentCompletedEvent event = completed(UUID.randomUUID(), orderId);
 
         send(Topics.PAYMENTS_COMPLETED, orderId, event);
         send(Topics.PAYMENTS_COMPLETED, orderId, event);
@@ -113,11 +119,7 @@ class PaymentEventsConsumerIT extends PostgresIT {
         // Заказ с тем же ключом уходит в ту же партицию и обрабатывается строго после дубля:
         // дождавшись его, мы знаем, что дубль уже прожёван, а не «наверное, успел».
         UUID barrier = createOrder();
-        send(
-                Topics.PAYMENTS_COMPLETED,
-                barrier,
-                new PaymentCompletedEvent(UUID.randomUUID(), barrier, Instant.now()),
-                orderId);
+        send(Topics.PAYMENTS_COMPLETED, barrier, completed(UUID.randomUUID(), barrier), orderId);
         awaitStatus(barrier, OrderStatus.PAID);
 
         assertThat(statusOf(orderId)).isEqualTo(OrderStatus.PAID);
@@ -134,9 +136,13 @@ class PaymentEventsConsumerIT extends PostgresIT {
         assertThat(dead.value()).isEqualTo("{ это не событие }");
     }
 
+    private static PaymentCompletedEvent completed(UUID eventId, UUID orderId) {
+        return new PaymentCompletedEvent(eventId, orderId, "it@payflow.ru", new BigDecimal("10.00"), Instant.now());
+    }
+
     private UUID createOrder() {
         OrderResponse response = orders.create(
-                UUID.randomUUID(),
+                registerCustomer(),
                 new CreateOrderRequest(List.of(new OrderItemRequest(UUID.randomUUID(), 1, new BigDecimal("10.00")))));
         return response.id();
     }

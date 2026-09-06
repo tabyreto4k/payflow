@@ -12,6 +12,7 @@ import ru.payflow.events.OrderCreatedEvent;
 import ru.payflow.events.PaymentCompletedEvent;
 import ru.payflow.events.PaymentFailedEvent;
 import ru.payflow.events.Topics;
+import ru.payflow.order.auth.service.AuthService;
 import ru.payflow.order.consumer.model.ProcessedEvent;
 import ru.payflow.order.consumer.repository.ProcessedEventRepository;
 import ru.payflow.order.exception.NotFoundException;
@@ -28,6 +29,7 @@ public class OrderService {
 
     private final OrderRepository orders;
     private final OrderQueryService queries;
+    private final AuthService auth;
     private final OutboxRepository outbox;
     private final ProcessedEventRepository processedEvents;
     private final ObjectMapper json;
@@ -35,11 +37,13 @@ public class OrderService {
     public OrderService(
             OrderRepository orders,
             OrderQueryService queries,
+            AuthService auth,
             OutboxRepository outbox,
             ProcessedEventRepository processedEvents,
             ObjectMapper json) {
         this.orders = orders;
         this.queries = queries;
+        this.auth = auth;
         this.outbox = outbox;
         this.processedEvents = processedEvents;
         this.json = json;
@@ -61,13 +65,18 @@ public class OrderService {
         // saveAndFlush, а не save: @CreationTimestamp проставляется на вставке, и без сброса
         // в ответе на создание заказа уехал бы createdAt: null.
         Order saved = orders.saveAndFlush(order);
-        outbox.save(orderCreated(saved));
+        outbox.save(orderCreated(saved, auth.emailOf(customerId)));
         return OrderResponse.from(saved);
     }
 
-    private OutboxEvent orderCreated(Order order) {
+    private OutboxEvent orderCreated(Order order, String customerEmail) {
         OrderCreatedEvent event = new OrderCreatedEvent(
-                UUID.randomUUID(), order.getId(), order.getCustomerId(), order.getTotal(), Instant.now());
+                UUID.randomUUID(),
+                order.getId(),
+                order.getCustomerId(),
+                customerEmail,
+                order.getTotal(),
+                Instant.now());
         return new OutboxEvent(Topics.ORDERS_CREATED, order.getId().toString(), serialize(event));
     }
 

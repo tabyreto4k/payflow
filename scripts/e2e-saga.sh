@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2E всего периметра против поднятого compose: register → login → счёт → заказ → PAID,
+# E2E всего периметра против поднятого compose: register → login → счёт → заказ → PAID → письмо,
 # компенсация при нехватке денег, а также отказы — без токена, чужой заказ, подделка личности
 # и превышение лимита.
 #
@@ -12,6 +12,8 @@ set -euo pipefail
 
 # Сертификат self-signed, поэтому -k. Наружу торчит только nginx.
 BASE=${GATEWAY_URL:-https://localhost}
+# MailHog — единственное, куда ходим мимо периметра: это не API продукта, а почтовый ящик стенда.
+MAILHOG=${MAILHOG_URL:-http://localhost:8025}
 CURL=(curl -sk)
 DEADLINE=${E2E_TIMEOUT_SECONDS:-60}
 
@@ -70,6 +72,26 @@ assert_balance() {
     echo "  баланс $actual"
 }
 
+# Письмо приезжает не ответом HTTP, а третьим сервисом по событию: его тоже только опрашиваем.
+letters_to() {
+    curl -s "$MAILHOG/api/v2/messages?limit=200" \
+        | jq --arg to "$1" '[.items[] | select(any(.To[]; .Mailbox + "@" + .Domain == $to))] | length'
+}
+
+await_letters() {
+    local address=$1 want=$2 seen deadline
+    deadline=$(( $(date +%s) + DEADLINE ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        seen=$(letters_to "$address")
+        if [ "$seen" = "$want" ]; then
+            echo "  писем на $address: $seen"
+            return 0
+        fi
+        sleep 1
+    done
+    fail "писем на $address: $seen, ожидалось $want"
+}
+
 assert_status() {
     local want=$1 got
     shift
@@ -79,7 +101,8 @@ assert_status() {
 }
 
 password='correct horse battery'
-token=$(register_and_login "user-$(uuid)@payflow.ru" "$password")
+email="user-$(uuid)@payflow.ru"
+token=$(register_and_login "$email" "$password")
 [ -n "$token" ] && [ "$token" != null ] || fail "логин не выдал access-токен"
 echo "Регистрация и логин через периметр: токен получен"
 
@@ -89,11 +112,14 @@ paid=$(create_order "$token" 40.00)
 [ "$(jq -r .status <<<"$paid")" = "AWAITING_PAYMENT" ] || fail "заказ создан не в AWAITING_PAYMENT"
 await_status "$token" "$(jq -r .id <<<"$paid")" PAID
 assert_balance "$token" "$account" 60.00
+await_letters "$email" 1
 
 echo "Сценарий 2: денег не хватает → CANCELLED"
 cancelled=$(create_order "$token" 1000.00)
 await_status "$token" "$(jq -r .id <<<"$cancelled")" CANCELLED
 assert_balance "$token" "$account" 60.00
+# Второе письмо — об отказе: адрес тот же, а исход саги другой.
+await_letters "$email" 2
 
 echo "Сценарий 3: без токена внутрь не пускают"
 assert_status 401 "$BASE/api/v1/orders"
@@ -111,4 +137,4 @@ burst=$(seq 150 | xargs -P 25 -I{} "${CURL[@]}" -o /dev/null -w '%{http_code}\n'
 echo "$burst" | sed 's/^/  /'
 grep -q ' 429$' <<<"$burst" || fail "ограничитель не сработал"
 
-echo "E2E: периметр держит, сага работает в обе стороны"
+echo "E2E: периметр держит, сага работает в обе стороны, письма доходят"

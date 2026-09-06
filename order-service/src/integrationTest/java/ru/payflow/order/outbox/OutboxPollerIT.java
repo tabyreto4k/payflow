@@ -109,7 +109,7 @@ class OutboxPollerIT extends PostgresIT {
 
     private OrderResponse createOrder(String price) {
         return orders.create(
-                UUID.randomUUID(),
+                registerCustomer(),
                 new CreateOrderRequest(List.of(new OrderItemRequest(UUID.randomUUID(), 1, new BigDecimal(price)))));
     }
 
