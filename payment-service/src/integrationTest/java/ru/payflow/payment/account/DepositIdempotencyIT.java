@@ -22,7 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
-import ru.payflow.payment.PostgresIT;
+import ru.payflow.payment.PaymentIT;
 import ru.payflow.payment.account.dto.AccountResponse;
 import ru.payflow.payment.account.dto.CreateAccountRequest;
 import ru.payflow.payment.account.dto.DepositRequest;
@@ -30,7 +30,7 @@ import ru.payflow.payment.account.service.AccountService;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class DepositIdempotencyIT extends PostgresIT {
+class DepositIdempotencyIT extends PaymentIT {
 
     private static final BigDecimal HUNDRED = new BigDecimal("100.00");
     private static final String CUSTOMER_ID = "X-Customer-Id";
@@ -146,7 +146,7 @@ class DepositIdempotencyIT extends PostgresIT {
     }
 
     private BigDecimal balanceOf(UUID accountId) {
-        return accounts.getById(customer, accountId).getBalance();
+        return accounts.getById(customer, accountId).balance();
     }
 
     private RequestBuilder deposit(UUID accountId, String key, BigDecimal amount) throws Exception {

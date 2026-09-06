@@ -34,6 +34,10 @@ spring:
       auto-offset-reset: earliest
     listener:
       ack-mode: record
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   threads:
     virtual:
       enabled: true
@@ -68,6 +72,9 @@ management:
         http.server.requests: true
 
 payflow:
+  cache:
+    # Минута: баланс — горячая запись, дольше держать протухшее значение незачем.
+    balance-ttl: ${BALANCE_CACHE_TTL:PT60S}
   outbox:
     batch-size: ${OUTBOX_BATCH_SIZE:100}
     poll-interval: ${OUTBOX_POLL_INTERVAL:PT0.2S}

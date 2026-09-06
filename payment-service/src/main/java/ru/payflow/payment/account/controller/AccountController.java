@@ -47,6 +47,6 @@ public class AccountController {
 
     @GetMapping("/{id}")
     public AccountResponse getById(@AuthenticationPrincipal UUID customerId, @PathVariable UUID id) {
-        return AccountResponse.from(accounts.getById(customerId, id));
+        return accounts.getById(customerId, id);
     }
 }

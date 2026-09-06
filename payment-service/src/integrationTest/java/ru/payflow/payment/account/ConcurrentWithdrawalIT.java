@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.RepeatedTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import ru.payflow.payment.PostgresIT;
+import ru.payflow.payment.PaymentIT;
 import ru.payflow.payment.account.dto.CreateAccountRequest;
 import ru.payflow.payment.account.model.Account;
 import ru.payflow.payment.account.service.AccountService;
@@ -25,7 +25,7 @@ import ru.payflow.payment.account.service.AccountService;
  * гонка, которая ловится через раз, ничего не доказывает.
  */
 @SpringBootTest
-class ConcurrentWithdrawalIT extends PostgresIT {
+class ConcurrentWithdrawalIT extends PaymentIT {
 
     private static final BigDecimal INITIAL = new BigDecimal("100.00");
     private static final BigDecimal WITHDRAWAL = new BigDecimal("70.00");
@@ -41,7 +41,7 @@ class ConcurrentWithdrawalIT extends PostgresIT {
         List<Boolean> outcomes = raceTwoWithdrawals(customerId);
 
         assertThat(outcomes).containsExactlyInAnyOrder(true, false);
-        assertThat(accounts.getById(customerId, account.getId()).getBalance()).isEqualByComparingTo("30.00");
+        assertThat(accounts.getById(customerId, account.getId()).balance()).isEqualByComparingTo("30.00");
     }
 
     private List<Boolean> raceTwoWithdrawals(UUID customerId) throws Exception {

@@ -24,6 +24,7 @@ import ru.payflow.events.PaymentFailedEvent;
 import ru.payflow.events.Topics;
 import ru.payflow.payment.account.model.Account;
 import ru.payflow.payment.account.repository.AccountRepository;
+import ru.payflow.payment.cache.BalanceCache;
 import ru.payflow.payment.consumer.repository.ProcessedEventRepository;
 import ru.payflow.payment.outbox.model.OutboxEvent;
 import ru.payflow.payment.outbox.repository.OutboxRepository;
@@ -39,6 +40,9 @@ class PaymentServiceTest {
 
     @Mock
     private AccountRepository accounts;
+
+    @Mock
+    private BalanceCache cache;
 
     @Mock
     private PaymentRepository payments;

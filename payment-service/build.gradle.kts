@@ -10,6 +10,8 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-security")
   implementation("org.liquibase:liquibase-core")
   implementation("org.springframework.kafka:spring-kafka")
+  // Кэш баланса: cache-aside поверх Redis, который уже стоит в стеке.
+  implementation("org.springframework.boot:spring-boot-starter-data-redis")
   runtimeOnly("org.postgresql:postgresql")
 
   integrationTestImplementation("org.testcontainers:postgresql")
