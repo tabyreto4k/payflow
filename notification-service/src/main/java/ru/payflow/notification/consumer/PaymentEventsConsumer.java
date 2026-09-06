@@ -1,15 +1,18 @@
 package ru.payflow.notification.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import ru.payflow.events.PaymentCompletedEvent;
 import ru.payflow.events.PaymentFailedEvent;
 import ru.payflow.events.Topics;
 import ru.payflow.notification.idempotency.EventDeduplicator;
+import ru.payflow.notification.logging.CorrelationId;
 import ru.payflow.notification.service.NotificationService;
 
 /** Исходы оплаты слушаются напрямую, своего топика у уведомлений нет [Р5]. */
@@ -29,15 +32,25 @@ public class PaymentEventsConsumer {
     }
 
     @KafkaListener(topics = Topics.PAYMENTS_COMPLETED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onPaymentCompleted(String payload) throws Exception {
+    public void onPaymentCompleted(String payload, @Header(name = CorrelationId.HEADER, required = false) byte[] id)
+            throws Exception {
         PaymentCompletedEvent event = json.readValue(payload, PaymentCompletedEvent.class);
-        once(event.eventId(), () -> notifications.notifyPaid(event));
+        CorrelationId.with(decode(id), () -> once(event.eventId(), () -> notifications.notifyPaid(event)));
     }
 
     @KafkaListener(topics = Topics.PAYMENTS_FAILED, groupId = "${spring.kafka.consumer.group-id}")
-    public void onPaymentFailed(String payload) throws Exception {
+    public void onPaymentFailed(String payload, @Header(name = CorrelationId.HEADER, required = false) byte[] id)
+            throws Exception {
         PaymentFailedEvent event = json.readValue(payload, PaymentFailedEvent.class);
-        once(event.eventId(), () -> notifications.notifyFailed(event));
+        CorrelationId.with(decode(id), () -> once(event.eventId(), () -> notifications.notifyFailed(event)));
+    }
+
+    /**
+     * Заголовок приезжает сырыми байтами: типа в нём нет, и маппер Spring Kafka строкой его не
+     * отдаст. Декодируем сами — это дешевле, чем настраивать доверенные типы заголовков.
+     */
+    private static String decode(byte[] header) {
+        return header == null ? null : new String(header, StandardCharsets.UTF_8);
     }
 
     /**

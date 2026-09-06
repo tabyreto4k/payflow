@@ -40,9 +40,14 @@ public class OutboxEvent {
 
     private Instant sentAt;
 
+    // Идентификатор запроса, породившего событие. Nullable: событие может родиться и вне запроса,
+    // а старые строки его не знали вовсе.
+    @Column(name = "correlation_id")
+    private String correlationId;
+
     protected OutboxEvent() {}
 
-    public OutboxEvent(String topic, String key, String payload) {
+    public OutboxEvent(String topic, String key, String payload, String correlationId) {
         if (topic == null || topic.isBlank()) {
             throw new IllegalArgumentException("Топик обязателен");
         }
@@ -55,6 +60,7 @@ public class OutboxEvent {
         this.topic = topic;
         this.key = key;
         this.payload = payload;
+        this.correlationId = correlationId;
     }
 
     public void markSent(Instant at) {
@@ -86,5 +92,9 @@ public class OutboxEvent {
 
     public Instant getSentAt() {
         return sentAt;
+    }
+
+    public String getCorrelationId() {
+        return correlationId;
     }
 }

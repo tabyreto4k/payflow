@@ -16,6 +16,7 @@ import ru.payflow.payment.account.model.Account;
 import ru.payflow.payment.account.repository.AccountRepository;
 import ru.payflow.payment.consumer.model.ProcessedEvent;
 import ru.payflow.payment.consumer.repository.ProcessedEventRepository;
+import ru.payflow.payment.logging.CorrelationId;
 import ru.payflow.payment.outbox.model.OutboxEvent;
 import ru.payflow.payment.outbox.repository.OutboxRepository;
 import ru.payflow.payment.payment.model.Payment;
@@ -106,7 +107,8 @@ public class PaymentService {
     }
 
     private void publish(String topic, UUID orderId, Object event) {
-        outbox.save(new OutboxEvent(topic, orderId.toString(), serialize(event)));
+        // Идентификатор тот же, что у события, которое сюда привело: цепочка не рвётся на сервисе.
+        outbox.save(new OutboxEvent(topic, orderId.toString(), serialize(event), CorrelationId.current()));
     }
 
     private String serialize(Object event) {

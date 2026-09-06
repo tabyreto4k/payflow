@@ -73,5 +73,10 @@ payflow:
     poll-interval: ${OUTBOX_POLL_INTERVAL:PT0.2S}
 
 logging:
+  # Логи структурные (ECS): их читает не человек в консоли, а сборщик. MDC уезжает в JSON полями,
+  # поэтому correlationId сразу становится фильтром, а не поводом писать регулярку.
+  structured:
+    format:
+      console: ecs
   level:
     root: INFO
