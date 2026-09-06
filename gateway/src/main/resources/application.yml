@@ -57,6 +57,11 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    # Гистограмма по HTTP нужна дашборду: без бакетов p99 не посчитать, из таймера
+    # приезжают только count и sum.
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 logging:
   level:

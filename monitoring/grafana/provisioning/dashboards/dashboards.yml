@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: payflow
+    type: file
+    # Дашборд едет в репозитории и накатывается провижинингом: правки в UI не переживают
+    # пересоздание контейнера, а этот файл переживает.
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards
