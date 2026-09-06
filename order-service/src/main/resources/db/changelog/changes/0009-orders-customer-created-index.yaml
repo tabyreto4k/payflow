@@ -1,0 +1,23 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0009-orders-customer-created-index
+      author: payflow
+      logicalFilePath: db/changelog/changes/0009-orders-customer-created-index.yaml
+      changes:
+        # Витрина заказов читается ровно так: фильтр по покупателю, порядок по времени, страница
+        # сверху. Одиночный индекс по customer_id давал сортировку 200 строк на каждый запрос;
+        # составной отдаёт их уже упорядоченными. Замеры — в docs/explain-analyze.md.
+        - createIndex:
+            tableName: orders
+            indexName: ix_orders_customer_created
+            columns:
+              - column:
+                  name: customer_id
+              - column:
+                  name: created_at
+                  descending: true
+        # Одиночный индекс стал лишним: customer_id — префикс составного, и поиск по нему идёт
+        # туда же. Лишний индекс на таблице с записью — это только замедление вставок.
+        - dropIndex:
+            tableName: orders
+            indexName: ix_orders_customer_id
