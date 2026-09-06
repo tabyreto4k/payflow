@@ -86,7 +86,8 @@ public class PaymentService {
         publish(
                 Topics.PAYMENTS_COMPLETED,
                 event.orderId(),
-                new PaymentCompletedEvent(UUID.randomUUID(), event.orderId(), Instant.now()));
+                new PaymentCompletedEvent(
+                        UUID.randomUUID(), event.orderId(), event.customerEmail(), event.amount(), Instant.now()));
     }
 
     /** Нехватка денег — законный исход саги, а не сбой: заказу нужно узнать о нём и отмениться. */
@@ -95,7 +96,13 @@ public class PaymentService {
         publish(
                 Topics.PAYMENTS_FAILED,
                 event.orderId(),
-                new PaymentFailedEvent(UUID.randomUUID(), event.orderId(), reason, Instant.now()));
+                new PaymentFailedEvent(
+                        UUID.randomUUID(),
+                        event.orderId(),
+                        event.customerEmail(),
+                        event.amount(),
+                        reason,
+                        Instant.now()));
     }
 
     private void publish(String topic, UUID orderId, Object event) {

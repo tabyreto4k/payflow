@@ -124,8 +124,8 @@ class OrderCreatedConsumerIT extends PostgresIT {
         UUID customer = openAccount("100.00");
         OrderCreatedEvent first = order(customer, "40.00");
         // Новый eventId: первый слой идемпотентности такое не ловит, ловит второй — по заказу.
-        OrderCreatedEvent republished =
-                new OrderCreatedEvent(UUID.randomUUID(), first.orderId(), customer, first.amount(), Instant.now());
+        OrderCreatedEvent republished = new OrderCreatedEvent(
+                UUID.randomUUID(), first.orderId(), customer, first.customerEmail(), first.amount(), Instant.now());
 
         payments.processOrder(first);
         payments.processOrder(republished);
@@ -203,6 +203,6 @@ class OrderCreatedConsumerIT extends PostgresIT {
 
     private static OrderCreatedEvent order(UUID customer, String amount) {
         return new OrderCreatedEvent(
-                UUID.randomUUID(), UUID.randomUUID(), customer, new BigDecimal(amount), Instant.now());
+                UUID.randomUUID(), UUID.randomUUID(), customer, "it@payflow.ru", new BigDecimal(amount), Instant.now());
     }
 }

@@ -34,6 +34,7 @@ import ru.payflow.payment.payment.repository.PaymentRepository;
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
 
+    private static final String EMAIL = "ivan@payflow.ru";
     private static final UUID CUSTOMER = UUID.randomUUID();
 
     @Mock
@@ -69,9 +70,11 @@ class PaymentServiceTest {
         OutboxEvent published = publishedEvent();
         assertThat(published.getTopic()).isEqualTo(Topics.PAYMENTS_COMPLETED);
         assertThat(published.getKey()).isEqualTo(event.orderId().toString());
-        assertThat(json.readValue(published.getPayload(), PaymentCompletedEvent.class)
-                        .orderId())
-                .isEqualTo(event.orderId());
+        PaymentCompletedEvent outcome = json.readValue(published.getPayload(), PaymentCompletedEvent.class);
+        assertThat(outcome.orderId()).isEqualTo(event.orderId());
+        // Адресат и сумма едут дальше: письмо шлёт notification-service, а спросить их ему негде.
+        assertThat(outcome.customerEmail()).isEqualTo(EMAIL);
+        assertThat(outcome.amount()).isEqualByComparingTo("40.00");
     }
 
     @Test
@@ -87,9 +90,10 @@ class PaymentServiceTest {
 
         OutboxEvent published = publishedEvent();
         assertThat(published.getTopic()).isEqualTo(Topics.PAYMENTS_FAILED);
-        assertThat(json.readValue(published.getPayload(), PaymentFailedEvent.class)
-                        .reason())
-                .isEqualTo("insufficient_funds");
+        PaymentFailedEvent outcome = json.readValue(published.getPayload(), PaymentFailedEvent.class);
+        assertThat(outcome.reason()).isEqualTo("insufficient_funds");
+        assertThat(outcome.customerEmail()).isEqualTo(EMAIL);
+        assertThat(outcome.amount()).isEqualByComparingTo("140.00");
     }
 
     @Test
@@ -133,7 +137,7 @@ class PaymentServiceTest {
 
     private static OrderCreatedEvent orderFor(String amount) {
         return new OrderCreatedEvent(
-                UUID.randomUUID(), UUID.randomUUID(), CUSTOMER, new BigDecimal(amount), Instant.now());
+                UUID.randomUUID(), UUID.randomUUID(), CUSTOMER, EMAIL, new BigDecimal(amount), Instant.now());
     }
 
     private static Account accountWith(String balance) {

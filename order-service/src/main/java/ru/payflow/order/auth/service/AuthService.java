@@ -1,6 +1,7 @@
 package ru.payflow.order.auth.service;
 
 import java.util.Locale;
+import java.util.UUID;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import ru.payflow.order.auth.repository.UserRepository;
 import ru.payflow.order.exception.EmailAlreadyUsedException;
 import ru.payflow.order.exception.InvalidCredentialsException;
 import ru.payflow.order.exception.InvalidTokenException;
+import ru.payflow.order.exception.NotFoundException;
 
 @Service
 public class AuthService {
@@ -60,6 +62,17 @@ public class AuthService {
         User user = users.findById(tokens.subjectOfRefresh(request.refreshToken()))
                 .orElseThrow(() -> new InvalidTokenException("Пользователь из токена больше не существует"));
         return issue(user);
+    }
+
+    /**
+     * Адрес покупателя для писем. Заказ уносит его в событие: кроме order-service email не знает
+     * никто, а лезть в чужую БД notification-service не может.
+     */
+    @Transactional(readOnly = true)
+    public String emailOf(UUID customerId) {
+        return users.findById(customerId)
+                .map(User::getEmail)
+                .orElseThrow(() -> new NotFoundException("Покупатель не найден: " + customerId));
     }
 
     private TokenResponse issue(User user) {

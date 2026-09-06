@@ -25,6 +25,7 @@ import ru.payflow.events.OrderCreatedEvent;
 import ru.payflow.events.PaymentCompletedEvent;
 import ru.payflow.events.PaymentFailedEvent;
 import ru.payflow.events.Topics;
+import ru.payflow.order.auth.service.AuthService;
 import ru.payflow.order.consumer.repository.ProcessedEventRepository;
 import ru.payflow.order.exception.IllegalStateTransitionException;
 import ru.payflow.order.order.dto.CreateOrderRequest;
@@ -41,12 +42,16 @@ import ru.payflow.order.outbox.repository.OutboxRepository;
 class OrderServiceTest {
 
     private static final UUID CUSTOMER = UUID.randomUUID();
+    private static final String EMAIL = "ivan@payflow.ru";
 
     @Mock
     private OrderRepository orders;
 
     @Mock
     private OrderQueryService queries;
+
+    @Mock
+    private AuthService auth;
 
     @Mock
     private OutboxRepository outbox;
@@ -65,6 +70,7 @@ class OrderServiceTest {
     @Test
     void createdOrderWaitsForPayment() {
         when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> persisted(invocation.getArgument(0)));
+        when(auth.emailOf(CUSTOMER)).thenReturn(EMAIL);
 
         OrderResponse response = service.create(CUSTOMER, request("20.00", 2));
 
@@ -76,6 +82,7 @@ class OrderServiceTest {
     @Test
     void createdOrderPutsItsEventIntoOutbox() throws Exception {
         when(orders.saveAndFlush(any(Order.class))).thenAnswer(invocation -> persisted(invocation.getArgument(0)));
+        when(auth.emailOf(CUSTOMER)).thenReturn(EMAIL);
 
         OrderResponse response = service.create(CUSTOMER, request("20.00", 2));
 
@@ -90,6 +97,8 @@ class OrderServiceTest {
         OrderCreatedEvent event = json.readValue(stored.getPayload(), OrderCreatedEvent.class);
         assertThat(event.orderId()).isEqualTo(response.id());
         assertThat(event.customerId()).isEqualTo(CUSTOMER);
+        // Адрес едет с событием: дальше по саге его взять неоткуда, письмо шлёт чужой сервис.
+        assertThat(event.customerEmail()).isEqualTo(EMAIL);
         assertThat(event.amount()).isEqualByComparingTo("40.00");
         assertThat(event.eventId()).isNotNull();
     }
@@ -100,7 +109,7 @@ class OrderServiceTest {
         Order awaiting = awaitingOrder();
         when(orders.findById(orderId)).thenReturn(Optional.of(awaiting));
 
-        service.applyPaid(new PaymentCompletedEvent(UUID.randomUUID(), orderId, Instant.now()));
+        service.applyPaid(completed(UUID.randomUUID(), orderId));
 
         assertThat(awaiting.getStatus()).isEqualTo(OrderStatus.PAID);
     }
@@ -111,7 +120,8 @@ class OrderServiceTest {
         Order awaiting = awaitingOrder();
         when(orders.findById(orderId)).thenReturn(Optional.of(awaiting));
 
-        service.applyFailed(new PaymentFailedEvent(UUID.randomUUID(), orderId, "insufficient_funds", Instant.now()));
+        service.applyFailed(new PaymentFailedEvent(
+                UUID.randomUUID(), orderId, EMAIL, new BigDecimal("10.00"), "insufficient_funds", Instant.now()));
 
         assertThat(awaiting.getStatus()).isEqualTo(OrderStatus.CANCELLED);
     }
@@ -121,7 +131,7 @@ class OrderServiceTest {
         UUID eventId = UUID.randomUUID();
         when(processedEvents.existsById(eventId)).thenReturn(true);
 
-        service.applyPaid(new PaymentCompletedEvent(eventId, UUID.randomUUID(), Instant.now()));
+        service.applyPaid(completed(eventId, UUID.randomUUID()));
 
         // Без отсечки повтор упал бы на переходе PAID → PAID и уехал бы в DLT как «ядовитый»,
         // хотя сообщение исправно.
@@ -148,6 +158,10 @@ class OrderServiceTest {
         when(queries.ownOrder(CUSTOMER, orderId)).thenReturn(awaiting);
 
         assertThat(service.cancel(CUSTOMER, orderId).status()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    private static PaymentCompletedEvent completed(UUID eventId, UUID orderId) {
+        return new PaymentCompletedEvent(eventId, orderId, EMAIL, new BigDecimal("10.00"), Instant.now());
     }
 
     private static Order awaitingOrder() {
