@@ -6,11 +6,11 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PagedModel;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.payflow.order.order.dto.CreateOrderRequest;
@@ -32,24 +32,24 @@ public class OrderController {
 
     @PostMapping
     public ResponseEntity<OrderResponse> create(
-            @RequestHeader("X-Customer-Id") UUID customerId, @Valid @RequestBody CreateOrderRequest request) {
+            @AuthenticationPrincipal UUID customerId, @Valid @RequestBody CreateOrderRequest request) {
         OrderResponse order = orders.create(customerId, request);
         return ResponseEntity.created(URI.create("/api/v1/orders/" + order.id()))
                 .body(order);
     }
 
     @GetMapping("/{id}")
-    public OrderResponse getById(@RequestHeader("X-Customer-Id") UUID customerId, @PathVariable UUID id) {
+    public OrderResponse getById(@AuthenticationPrincipal UUID customerId, @PathVariable UUID id) {
         return queries.getById(customerId, id);
     }
 
     @GetMapping
-    public PagedModel<OrderResponse> list(@RequestHeader("X-Customer-Id") UUID customerId, Pageable pageable) {
+    public PagedModel<OrderResponse> list(@AuthenticationPrincipal UUID customerId, Pageable pageable) {
         return new PagedModel<>(queries.list(customerId, pageable));
     }
 
     @PostMapping("/{id}/cancel")
-    public OrderResponse cancel(@RequestHeader("X-Customer-Id") UUID customerId, @PathVariable UUID id) {
+    public OrderResponse cancel(@AuthenticationPrincipal UUID customerId, @PathVariable UUID id) {
         return orders.cancel(customerId, id);
     }
 }

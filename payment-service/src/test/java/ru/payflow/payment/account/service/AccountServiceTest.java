@@ -36,7 +36,7 @@ class AccountServiceTest {
         when(accounts.existsByCustomerId(customerId)).thenReturn(false);
         when(accounts.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Account account = service.open(new CreateAccountRequest(customerId, new BigDecimal("100.00")));
+        Account account = service.open(customerId, new CreateAccountRequest(new BigDecimal("100.00")));
 
         assertThat(account.getCustomerId()).isEqualTo(customerId);
         assertThat(account.getBalance()).isEqualByComparingTo("100.00");
@@ -48,17 +48,18 @@ class AccountServiceTest {
         when(accounts.existsByCustomerId(customerId)).thenReturn(true);
 
         assertThatExceptionOfType(AccountAlreadyExistsException.class)
-                .isThrownBy(() -> service.open(new CreateAccountRequest(customerId, BigDecimal.TEN)));
+                .isThrownBy(() -> service.open(customerId, new CreateAccountRequest(BigDecimal.TEN)));
         verify(accounts, never()).save(any());
     }
 
     @Test
-    void readsAccountById() {
+    void readsOwnAccountById() {
+        UUID customerId = UUID.randomUUID();
         UUID id = UUID.randomUUID();
-        Account stored = new Account(UUID.randomUUID(), BigDecimal.TEN);
+        Account stored = new Account(customerId, BigDecimal.TEN);
         when(accounts.findById(id)).thenReturn(Optional.of(stored));
 
-        assertThat(service.getById(id)).isSameAs(stored);
+        assertThat(service.getById(customerId, id)).isSameAs(stored);
     }
 
     @Test
@@ -66,6 +67,14 @@ class AccountServiceTest {
         UUID id = UUID.randomUUID();
         when(accounts.findById(id)).thenReturn(Optional.empty());
 
-        assertThatExceptionOfType(NotFoundException.class).isThrownBy(() -> service.getById(id));
+        assertThatExceptionOfType(NotFoundException.class).isThrownBy(() -> service.getById(UUID.randomUUID(), id));
+    }
+
+    @Test
+    void strangersAccountIsNotFound() {
+        UUID id = UUID.randomUUID();
+        when(accounts.findById(id)).thenReturn(Optional.of(new Account(UUID.randomUUID(), BigDecimal.TEN)));
+
+        assertThatExceptionOfType(NotFoundException.class).isThrownBy(() -> service.getById(UUID.randomUUID(), id));
     }
 }

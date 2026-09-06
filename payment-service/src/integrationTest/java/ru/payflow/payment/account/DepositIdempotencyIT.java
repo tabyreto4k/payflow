@@ -33,6 +33,10 @@ import ru.payflow.payment.account.service.AccountService;
 class DepositIdempotencyIT extends PostgresIT {
 
     private static final BigDecimal HUNDRED = new BigDecimal("100.00");
+    private static final String CUSTOMER_ID = "X-Customer-Id";
+
+    /** Свой покупатель на каждый тест: JUnit создаёт экземпляр класса на метод. */
+    private final UUID customer = UUID.randomUUID();
 
     @Autowired
     private MockMvc mockMvc;
@@ -84,7 +88,7 @@ class DepositIdempotencyIT extends PostgresIT {
         CountDownLatch start = new CountDownLatch(1);
         Callable<AccountResponse> call = () -> {
             start.await();
-            return accounts.deposit(accountId, key, new DepositRequest(HUNDRED));
+            return accounts.deposit(customer, accountId, key, new DepositRequest(HUNDRED));
         };
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -108,6 +112,7 @@ class DepositIdempotencyIT extends PostgresIT {
         UUID accountId = openAccount();
 
         mockMvc.perform(post("/api/v1/accounts/{id}/deposit", accountId)
+                        .header(CUSTOMER_ID, customer)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(new DepositRequest(HUNDRED))))
                 .andExpect(status().isBadRequest());
@@ -130,8 +135,9 @@ class DepositIdempotencyIT extends PostgresIT {
 
     private UUID openAccount() throws Exception {
         String created = mockMvc.perform(post("/api/v1/accounts")
+                        .header(CUSTOMER_ID, customer)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(new CreateAccountRequest(UUID.randomUUID(), HUNDRED))))
+                        .content(json.writeValueAsString(new CreateAccountRequest(HUNDRED))))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
@@ -140,11 +146,12 @@ class DepositIdempotencyIT extends PostgresIT {
     }
 
     private BigDecimal balanceOf(UUID accountId) {
-        return accounts.getById(accountId).getBalance();
+        return accounts.getById(customer, accountId).getBalance();
     }
 
     private RequestBuilder deposit(UUID accountId, String key, BigDecimal amount) throws Exception {
         return post("/api/v1/accounts/{id}/deposit", accountId)
+                .header(CUSTOMER_ID, customer)
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(new DepositRequest(amount)));

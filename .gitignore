@@ -24,3 +24,7 @@ logs/
 # ОС
 .DS_Store
 Thumbs.db
+
+# Self-signed серты для локального стенда: генерятся scripts/gen-certs.sh
+nginx/certs/*
+!nginx/certs/.gitkeep

@@ -63,6 +63,11 @@ management:
       application: ${spring.application.name}
 
 payflow:
+  jwt:
+    # Секрет общий с gateway; дефолта нет намеренно — сервис не должен подниматься с ключом из кода.
+    secret: ${JWT_SECRET}
+    access-ttl: ${JWT_ACCESS_TTL:15m}
+    refresh-ttl: ${JWT_REFRESH_TTL:7d}
   outbox:
     batch-size: ${OUTBOX_BATCH_SIZE:100}
     poll-interval: ${OUTBOX_POLL_INTERVAL:PT0.2S}
