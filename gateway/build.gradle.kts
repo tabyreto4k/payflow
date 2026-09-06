@@ -2,7 +2,11 @@ plugins {
   id("payflow.spring-service")
 }
 
-val springCloudBom = libs.spring.cloud.bom.get().toString()
+// Цепочку от version catalog ktfmt всё равно разносит по строкам — так хотя бы один раз.
+val springCloudBom =
+  libs.spring.cloud.bom
+    .get()
+    .toString()
 
 dependencyManagement {
   imports { mavenBom(springCloudBom) }
