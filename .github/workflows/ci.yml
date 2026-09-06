@@ -68,6 +68,9 @@ jobs:
           sed -i 's/^GRAFANA_ADMIN_PASSWORD=$/GRAFANA_ADMIN_PASSWORD=admin/' .env
           sed -i 's/^JWT_SECRET=$/JWT_SECRET=ci-only-signing-key-32-bytes-min/' .env
 
+      - name: Self-signed certificate for nginx
+        run: ./scripts/gen-certs.sh
+
       - name: Start the stack
         run: docker compose up -d --wait
 
@@ -76,7 +79,7 @@ jobs:
 
       - name: Service logs on failure
         if: failure()
-        run: docker compose logs --tail 200 order-service payment-service
+        run: docker compose logs --tail 200 nginx gateway order-service payment-service
 
       - name: Tear down
         if: always()
