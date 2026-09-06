@@ -4,21 +4,34 @@
 [![codeql](https://github.com/tabyreto4k/payflow/actions/workflows/codeql.yml/badge.svg)](https://github.com/tabyreto4k/payflow/actions/workflows/codeql.yml)
 [![release](https://github.com/tabyreto4k/payflow/actions/workflows/release.yml/badge.svg)](https://github.com/tabyreto4k/payflow/actions/workflows/release.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![coverage](https://img.shields.io/badge/coverage-gate%2070%25-brightgreen.svg)](build-logic/src/main/kotlin/payflow.java-conventions.gradle.kts)
 
 Упрощённый биллинг маркетплейса на микросервисах: заказ создаётся, деньги списываются со
 счёта, заказ переходит в `PAID`, уходит уведомление. Обмен асинхронный, ни одно событие
 не теряется, повторная доставка не списывает деньги дважды.
 
-> **Статус:** работают сага через Kafka, внешний периметр (JWT, gateway, nginx) и письма
-> об исходе оплаты. В работе: наблюдаемость. Сценарий проверки: [docs/requests.http](docs/requests.http).
+> **Статус:** проект собран целиком. Сценарий проверки — [docs/requests.http](docs/requests.http),
+> он же скриптом: [scripts/e2e-saga.sh](scripts/e2e-saga.sh).
 
-```
-                          ┌─→ order-service ──┐
-клиент → nginx → gateway ─┤                   ├─→ Kafka ─→ notification-service
-                          └─→ payment-service ┘
+```mermaid
+flowchart LR
+    client([клиент]) -->|https| nginx[nginx<br/>TLS, limit_req]
+    nginx --> gw[gateway<br/>JWT, rate limit]
+    gw --> orders[order-service]
+    gw --> payments[payment-service]
+    orders -->|orders.created| kafka{{Kafka}}
+    kafka --> payments
+    payments -->|payments.completed<br/>payments.failed| kafka
+    kafka --> orders
+    kafka --> notify[notification-service]
+    notify --> mail[(MailHog)]
+    orders --- ordersdb[(orders_db)]
+    payments --- paymentsdb[(payments_db)]
 ```
 
-У каждого сервиса своя база. Общей БД нет.
+Синхронных вызовов между сервисами нет ни одного: order-service и payment-service общаются
+только событиями. У каждого своя база, кросс-запрос невозможен на уровне прав
+([ADR 0002](docs/adr/0002-database-per-service.md)).
 
 ## Стек
 
@@ -49,12 +62,50 @@ docker compose up -d --wait
 `curl -k`). Порты `gateway`, `order-service` и `payment-service` доступны лишь внутри
 сети compose — доверие к заголовкам `X-Customer-Id`/`X-Roles` держится ровно на этом.
 
+Swagger UI — один на весь периметр: <https://localhost/swagger-ui.html>, переключатель
+сервисов в правом верхнем углу. Спеки отдают сами сервисы
+(`/v3/api-docs/orders`, `/v3/api-docs/payments`), gateway их только маршрутизирует.
+
 Рядом поднимается инфраструктура: postgres (`5432`), kafka (`29092` с хоста,
 `kafka:9092` внутри сети), redis (`6379`), mailhog (`8025` — веб-интерфейс),
 prometheus (`9090`), grafana (`3000`). Письма об оплате видно там же, в MailHog:
 <http://localhost:8025>.
 
 Образы каждой ревизии `main` — в GHCR: `ghcr.io/tabyreto4k/payflow/<сервис>:main`.
+
+## Что проверяет сценарий
+
+`scripts/e2e-saga.sh` идёт снаружи, через nginx, и проверяет шесть вещей за один прогон:
+
+1. Регистрация и логин выдают пару токенов.
+2. Заказ на 40 при балансе 100 доходит до `PAID`, баланс становится 60, на адрес
+   покупателя приходит письмо.
+3. Заказ на 1000 при балансе 60 приводит к `CANCELLED`, баланс не меняется, приходит
+   второе письмо — об отказе.
+4. Запрос без токена получает 401.
+5. Запрос с подделанным `X-Customer-Id` получает 401: gateway срезает клиентские заголовки.
+6. Серия из 150 запросов подряд упирается в 429.
+
+Заказ двигают не ответы HTTP, а события: скрипт опрашивает статус, пока сага не отработает.
+Ручной вариант того же — [docs/requests.http](docs/requests.http).
+
+## Наблюдаемость
+
+Prometheus снимает метрики со всех четырёх сервисов по `/actuator/prometheus`, дашборд
+приезжает провижинингом и открывается на <http://localhost:3000> без ручной настройки.
+Четыре панели: запросы в секунду, p99, лаг консьюмеров Kafka и ответы по статусам —
+на последней видно и 401 без токена, и 429 от ограничителя.
+
+![Дашборд PayFlow](docs/screenshots/grafana-overview.png)
+
+Логи структурные, в формате ECS. Сквозной идентификатор запроса заводит gateway (или берёт
+`X-Request-Id` от nginx), дальше он живёт в MDC, уезжает заголовком записи Kafka и
+поднимается обратно в MDC у потребителей. Один поход клиента собирается из логов трёх
+сервисов, между которыми нет ни одного синхронного вызова:
+
+```bash
+docker compose logs --no-log-prefix order-service | jq -r 'select(.correlationId=="<id>") | .message'
+```
 
 ## Разработка
 
@@ -129,8 +180,46 @@ nginx перед gateway не дублирует его: терминация TL
 
 ## Архитектурные решения
 
-Раздел собирается по мере готовности: почему Kafka, а не RabbitMQ; почему outbox;
-почему пессимистичная блокировка при списании; когда кэш баланса вреден.
+Каждая развилка записана отдельным ADR — с альтернативами, которые проиграли, и с ценой,
+которую платит выбранный вариант.
+
+| ADR | О чём |
+|---|---|
+| [0001](docs/adr/0001-multi-module-gradle.md) | один мультимодульный Gradle-билд вместо проекта на сервис |
+| [0002](docs/adr/0002-database-per-service.md) | своя база у сервиса: отдельные БД и пользователи в одном Postgres |
+| [0003](docs/adr/0003-spring-kafka.md) | spring-kafka напрямую, без Spring Cloud Stream |
+| [0004](docs/adr/0004-events-contract-module.md) | общий модуль контракта вместо копий записей событий |
+| [0005](docs/adr/0005-transactional-outbox.md) | transactional outbox со своим поллером, а не CDC |
+| [0006](docs/adr/0006-idempotency-layers.md) | три механизма идемпотентности под три вида дублей |
+| [0007](docs/adr/0007-auth-in-order-service.md) | токены выпускает order-service, gateway их проверяет |
+| [0008](docs/adr/0008-notifications-direct.md) | уведомления слушают события оплаты напрямую |
+
+Замер составного индекса под витрину заказов — в
+[docs/explain-analyze.md](docs/explain-analyze.md): 1.883 мс и 205 буферов против 0.099 мс
+и 23 после индекса.
+
+## Что бы улучшил
+
+Поллер outbox рассчитан на один инстанс сервиса. При двух он начнёт выбирать один и тот же
+батч, поэтому первым делом понадобится `FOR UPDATE SKIP LOCKED` или ShedLock.
+
+Кэш баланса я бы, скорее всего, снял. Счёт — горячая запись, попадания надо сначала
+измерить, а гонка «промах — коммит — запись из промаха» ограничена минутным TTL, но не
+устранена.
+
+Дедуп уведомлений держится на Redis: потеря Redis означает возможное второе письмо. Для
+писем это приемлемо, для чего-то дороже — нет.
+
+Сквозной идентификатор проставлен руками. Micrometer Tracing с OpenTelemetry дал бы то же
+самое спанами, с длительностями каждого шага, а не только строкой в логе.
+
+Refresh-токен нельзя отозвать: чёрного списка нет, украденный токен живёт свои семь дней.
+
+Секреты лежат в `.env` рядом с compose. Для стенда это нормально, для прода нужен внешний
+источник вроде Vault.
+
+Нагрузочного теста нет. Числа в `docs/explain-analyze.md` сняты на одном запросе, а не под
+нагрузкой; предел стенда неизвестен.
 
 ## Лицензия
 

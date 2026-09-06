@@ -44,6 +44,14 @@ spring:
     problemdetails:
       enabled: true
 
+springdoc:
+  api-docs:
+    # Путь свой у каждого сервиса: спеки собирает один Swagger UI на gateway, и по общему
+    # /v3/api-docs они бы столкнулись.
+    path: /v3/api-docs/orders
+  swagger-ui:
+    enabled: false
+
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful

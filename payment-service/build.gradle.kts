@@ -6,6 +6,8 @@ dependencies {
   implementation(project(":events-contract"))
 
   implementation("org.springframework.boot:spring-boot-starter-web")
+  // Только спека: единственный Swagger UI живёт на gateway и собирает спеки сервисов.
+  implementation(libs.springdoc.webmvc.api)
   implementation("org.springframework.boot:spring-boot-starter-data-jpa")
   implementation("org.springframework.boot:spring-boot-starter-security")
   implementation("org.liquibase:liquibase-core")

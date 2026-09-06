@@ -2,7 +2,6 @@ package ru.payflow.payment.account.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -68,24 +67,6 @@ public class AccountService {
         AccountResponse response = AccountResponse.from(account);
         idempotencyKeys.save(new IdempotencyKey(idempotencyKey, writeResponse(response)));
         return response;
-    }
-
-    /**
-     * Списывает сумму со счёта покупателя, держа строку под блокировкой до конца транзакции.
-     *
-     * @return {@code false}, если денег не хватило — это один из двух ожидаемых исходов оплаты,
-     *     а не сбой, поэтому исключением он не выражается
-     */
-    @Transactional
-    public boolean charge(UUID customerId, BigDecimal amount) {
-        Account account = accounts.findByCustomerIdForUpdate(customerId)
-                .orElseThrow(() -> new NotFoundException("У покупателя %s нет счёта".formatted(customerId)));
-        if (account.getBalance().compareTo(amount) < 0) {
-            return false;
-        }
-        account.withdraw(amount);
-        cache.evictAfterCommit(account.getId());
-        return true;
     }
 
     /**

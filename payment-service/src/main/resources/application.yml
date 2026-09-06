@@ -48,6 +48,12 @@ spring:
     problemdetails:
       enabled: true
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs/payments
+  swagger-ui:
+    enabled: false
+
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful

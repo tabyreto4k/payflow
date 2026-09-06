@@ -6,6 +6,7 @@ spotless = "7.0.2"
 checkstyle = "10.21.4"
 palantirJavaFormat = "2.57.0"
 jacoco = "0.8.12"
+springdoc = "2.8.17"
 
 [libraries]
 plugin-spring-boot = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "springBoot" }
@@ -13,6 +14,9 @@ plugin-spring-dependency-management = { module = "io.spring.gradle:dependency-ma
 plugin-spotless = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
 
 spring-cloud-bom = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "springCloud" }
+
+springdoc-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }
+springdoc-webflux-ui = { module = "org.springdoc:springdoc-openapi-starter-webflux-ui", version.ref = "springdoc" }
 
 [plugins]
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
