@@ -35,6 +35,9 @@ public class SecurityConfig {
     SecurityFilterChain filterChain(
             HttpSecurity http, @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver)
             throws Exception {
+        // CSRF выключён осознанно, и это не упущение: сессий и cookie здесь нет (STATELESS),
+        // личность приезжает заголовком от gateway. Атака подделкой запроса эксплуатирует
+        // браузерный контекст с ambient-кредами — его у этого API не существует.
         return http.csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .httpBasic(basic -> basic.disable())

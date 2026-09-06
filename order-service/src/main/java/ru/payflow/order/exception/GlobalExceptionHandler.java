@@ -37,7 +37,7 @@ public class GlobalExceptionHandler {
 
     /** Прилетает из entry point'а Spring Security: личности в заголовках нет или она нечитаема. */
     @ExceptionHandler(AuthenticationException.class)
-    public ProblemDetail handleUnauthenticated(AuthenticationException e) {
+    public ProblemDetail handleUnauthenticated() {
         return problem(HttpStatus.UNAUTHORIZED, "Не аутентифицирован", "Запрос без личности покупателя");
     }
 
